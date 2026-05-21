@@ -669,7 +669,9 @@ class StepLiteParser(
     private data class ResolvedCurveRecord(
         val curveId: Int,
         val sameSense: Boolean,
-        val offset: DirectionRecord? = null
+        val offset: DirectionRecord? = null,
+        val trimStartParameter: Double? = null,
+        val trimEndParameter: Double? = null
     )
 
     private fun LineRecord.toStandaloneEntity(
@@ -934,7 +936,17 @@ class StepLiteParser(
 
         val spline = splines[resolvedCurveId]
         if (spline != null) {
-            val splinePoints = spline.toPolylinePoints(points)
+            val trimStartParameter = resolvedCurve.trimStartParameter
+            val trimEndParameter = resolvedCurve.trimEndParameter
+            val splinePoints = if (trimStartParameter != null && trimEndParameter != null) {
+                spline.toPolylinePoints(
+                    points = points,
+                    startParameter = trimStartParameter,
+                    endParameter = trimEndParameter
+                )
+            } else {
+                spline.toPolylinePoints(points)
+            }
                 ?.orientedBetween(
                     start = if (resolvedSameSense) basisStart else basisEnd,
                     end = if (resolvedSameSense) basisEnd else basisStart
@@ -1002,8 +1014,16 @@ class StepLiteParser(
         var id = curveId
         var sense = sameSense
         var offset: DirectionRecord? = null
+        var trimStartParameter: Double? = null
+        var trimEndParameter: Double? = null
         repeat(MaxCurveWrapperDepth) {
-            val wrapper = curveWrappers[id] ?: return ResolvedCurveRecord(id, sense, offset)
+            val wrapper = curveWrappers[id] ?: return ResolvedCurveRecord(
+                curveId = id,
+                sameSense = sense,
+                offset = offset,
+                trimStartParameter = trimStartParameter,
+                trimEndParameter = trimEndParameter
+            )
             val offsetDistance = wrapper.offsetDistance
             val offsetDirectionId = wrapper.offsetDirectionId
             if (offsetDistance != null || offsetDirectionId != null) {
@@ -1012,10 +1032,22 @@ class StepLiteParser(
                 val delta = direction.scale(offsetDistance ?: return null)
                 offset = offset?.plus(delta) ?: delta
             }
+            val wrapperTrimStartParameter = wrapper.trimStartParameter
+            val wrapperTrimEndParameter = wrapper.trimEndParameter
+            if (wrapperTrimStartParameter != null && wrapperTrimEndParameter != null) {
+                trimStartParameter = if (wrapper.sameSense) wrapperTrimStartParameter else wrapperTrimEndParameter
+                trimEndParameter = if (wrapper.sameSense) wrapperTrimEndParameter else wrapperTrimStartParameter
+            }
             id = wrapper.basisCurveId
             sense = sense == wrapper.sameSense
         }
-        return ResolvedCurveRecord(id, sense, offset)
+        return ResolvedCurveRecord(
+            curveId = id,
+            sameSense = sense,
+            offset = offset,
+            trimStartParameter = trimStartParameter,
+            trimEndParameter = trimEndParameter
+        )
     }
 
     private fun CurveWrapperRecord.toStandaloneEntity(
