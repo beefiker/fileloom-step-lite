@@ -150,6 +150,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsUnknownTrimmedCurveBoundsInsteadOfEmittingFullBasisCurve() {
+        val result = StepLiteParser().parse(UnknownTrimmedCurveBoundsStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun parsesCircularEdgeCurvesIntoArcsAndClosedCircles() {
         val result = StepLiteParser().parse(CircularStep.byteInputStream())
 
@@ -1739,6 +1749,29 @@ class StepLiteParserTest {
             #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
             #20=CIRCLE('',#13,$);
             #30=GEOMETRIC_CURVE_SET('',(#20));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val UnknownTrimmedCurveBoundsStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom unknown trimmed curve bounds STEP fixture'),'2;1');
+            FILE_NAME('unknown-trimmed-curve-bounds.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Unknown Trimmed Curve Bounds Fixture','Unknown Trimmed Curve Bounds Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(5.,5.,0.));
+            #11=DIRECTION('',(0.,0.,1.));
+            #12=DIRECTION('',(1.,0.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #20=CIRCLE('',#13,2.5);
+            #30=TRIMMED_CURVE('',#20,$,$,.T.,.PARAMETER.);
+            #40=GEOMETRIC_CURVE_SET('',(#30));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

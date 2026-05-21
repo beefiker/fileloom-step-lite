@@ -163,6 +163,7 @@ class StepLiteParser(
         val edges = linkedMapOf<Int, EdgeCurveRecord>()
         val orientedEdges = linkedMapOf<Int, OrientedEdgeRecord>()
         val edgeLoops = linkedMapOf<Int, List<Int>>()
+        val invalidWrapperBasisCurveIds = linkedSetOf<Int>()
         var productName = ""
         var fileName = ""
         var unit = StepLiteUnit.UNKNOWN
@@ -270,7 +271,11 @@ class StepLiteParser(
                 }
                 "TRIMMED_CURVE" -> {
                     val trimmedCurve = record.args.toTrimmedCurveRecord()
-                    if (trimmedCurve != null) curveWrappers[record.id] = trimmedCurve
+                    if (trimmedCurve != null) {
+                        curveWrappers[record.id] = trimmedCurve
+                    } else {
+                        record.args.refs().firstOrNull()?.let(invalidWrapperBasisCurveIds::add)
+                    }
                 }
                 "SURFACE_CURVE", "SEAM_CURVE" -> {
                     val wrappedCurve = record.args.toBasisCurveWrapperRecord()
@@ -340,8 +345,13 @@ class StepLiteParser(
                     if (hyperbola != null) hyperbolas[record.id] = hyperbola
                     val vector = record.args.entityArgs("VECTOR")?.toVectorRecord()
                     if (vector != null) vectors[record.id] = vector
-                    val trimmedCurve = record.args.entityArgs("TRIMMED_CURVE")?.toTrimmedCurveRecord()
-                    if (trimmedCurve != null) curveWrappers[record.id] = trimmedCurve
+                    val trimmedCurveArgs = record.args.entityArgs("TRIMMED_CURVE")
+                    val trimmedCurve = trimmedCurveArgs?.toTrimmedCurveRecord()
+                    if (trimmedCurve != null) {
+                        curveWrappers[record.id] = trimmedCurve
+                    } else {
+                        trimmedCurveArgs?.refs()?.firstOrNull()?.let(invalidWrapperBasisCurveIds::add)
+                    }
                     val surfaceCurve = record.args.entityArgs("SURFACE_CURVE")?.toBasisCurveWrapperRecord()
                     if (surfaceCurve != null) curveWrappers[record.id] = surfaceCurve
                     val seamCurve = record.args.entityArgs("SEAM_CURVE")?.toBasisCurveWrapperRecord()
@@ -421,6 +431,7 @@ class StepLiteParser(
             .map { it.curveId }
             .plus(curveWrappers.values.asSequence().map { it.basisCurveId })
             .plus(compositeSegments.values.asSequence().map { it.parentCurveId })
+            .plus(invalidWrapperBasisCurveIds.asSequence())
             .toSet()
         val loopEdgeIds = linkedSetOf<Int>()
         for ((sourceId, orientedEdgeIds) in edgeLoops) {
@@ -2341,13 +2352,23 @@ class StepLiteParser(
         val basisCurveId = fields.getOrNull(1)?.refs()?.firstOrNull()
             ?: refs().firstOrNull()
             ?: return null
+        val trimStartPointId = trimStartField?.refs()?.firstOrNull()
+        val trimEndPointId = trimEndField?.refs()?.firstOrNull()
+        val trimStartParameter = trimStartField?.parameterTrimValueOrNull()
+        val trimEndParameter = trimEndField?.parameterTrimValueOrNull()
+        if (
+            (trimStartPointId == null || trimEndPointId == null) &&
+            (trimStartParameter == null || trimEndParameter == null)
+        ) {
+            return null
+        }
         return CurveWrapperRecord(
             basisCurveId = basisCurveId,
             sameSense = lastTopLevelLogical() ?: true,
-            trimStartPointId = trimStartField?.refs()?.firstOrNull(),
-            trimEndPointId = trimEndField?.refs()?.firstOrNull(),
-            trimStartParameter = trimStartField?.parameterTrimValueOrNull(),
-            trimEndParameter = trimEndField?.parameterTrimValueOrNull()
+            trimStartPointId = trimStartPointId,
+            trimEndPointId = trimEndPointId,
+            trimStartParameter = trimStartParameter,
+            trimEndParameter = trimEndParameter
         )
     }
 
