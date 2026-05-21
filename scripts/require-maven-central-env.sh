@@ -31,6 +31,11 @@ case "${TARGET}" in
     require_env SIGNING_KEY
     require_env SIGNING_PASSWORD
 
+    if [[ "${MAVEN_CENTRAL_NAMESPACE}" != "dev.jaeyoung" ]]; then
+      echo "MAVEN_CENTRAL_NAMESPACE must be dev.jaeyoung for this artifact: ${MAVEN_CENTRAL_NAMESPACE}" >&2
+      exit 1
+    fi
+
     VERSION="$(release_version)"
     if [[ -z "${VERSION}" ]]; then
       echo "Missing release version. Provide WORKFLOW_RELEASE_VERSION or push a v* tag." >&2

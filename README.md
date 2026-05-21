@@ -71,6 +71,8 @@ Check publish inputs locally without uploading:
 ./scripts/require-maven-central-env.sh release
 ```
 
+The release preflight intentionally rejects `MAVEN_CENTRAL_NAMESPACE` values other than `dev.jaeyoung` so this artifact cannot be staged under the wrong Central Portal namespace.
+
 Publish a snapshot:
 
 ```bash
