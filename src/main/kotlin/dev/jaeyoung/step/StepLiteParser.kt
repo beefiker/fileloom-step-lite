@@ -369,10 +369,12 @@ class StepLiteParser(
                     parabolas = parabolas,
                     hyperbolas = hyperbolas,
                     splines = splines,
+                    vectors = vectors,
                     curveWrappers = curveWrappers,
                     compositeSegments = compositeSegments,
                     compositeCurves = compositeCurves,
                     lineCurves = lineCurves,
+                    lineRecords = lineRecords,
                     polylineCurves = polylineCurves
                 )
                 if (entity != null) {
@@ -427,10 +429,12 @@ class StepLiteParser(
                 parabolas = parabolas,
                 hyperbolas = hyperbolas,
                 splines = splines,
+                vectors = vectors,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
                 lineCurves = lineCurves,
+                lineRecords = lineRecords,
                 polylineCurves = polylineCurves
             )?.let(entities::add)
         }
@@ -460,9 +464,12 @@ class StepLiteParser(
             segmentIds.toCompositeCurvePoints(
                 points = points,
                 splines = splines,
+                directions = directions,
+                vectors = vectors,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
+                lineRecords = lineRecords,
                 polylineCurves = polylineCurves
             )?.let { compositePoints ->
                 entities += StepLiteEntity.Polyline(
@@ -582,14 +589,27 @@ class StepLiteParser(
         directions: Map<Int, DirectionRecord>,
         vectors: Map<Int, VectorRecord>
     ): StepLiteEntity.Line? {
+        val linePoints = toPoints(
+            points = points,
+            directions = directions,
+            vectors = vectors
+        ) ?: return null
+        return StepLiteEntity.Line(
+            start = linePoints[0],
+            end = linePoints[1],
+            sourceId = sourceId
+        )
+    }
+
+    private fun LineRecord.toPoints(
+        points: Map<Int, StepLitePoint>,
+        directions: Map<Int, DirectionRecord>,
+        vectors: Map<Int, VectorRecord>
+    ): List<StepLitePoint>? {
         val start = points[pointId] ?: return null
         val vector = vectors[vectorId] ?: return null
         val direction = directions[vector.directionId]?.normalizedOrNull() ?: return null
-        return StepLiteEntity.Line(
-            start = start,
-            end = start.offsetBy(direction, vector.magnitude),
-            sourceId = sourceId
-        )
+        return listOf(start, start.offsetBy(direction, vector.magnitude))
     }
 
     private fun EdgeCurveRecord.toEntity(
@@ -603,10 +623,12 @@ class StepLiteParser(
         parabolas: Map<Int, ParabolaRecord>,
         hyperbolas: Map<Int, HyperbolaRecord>,
         splines: Map<Int, BSplineRecord>,
+        vectors: Map<Int, VectorRecord>,
         curveWrappers: Map<Int, CurveWrapperRecord>,
         compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
         compositeCurves: Map<Int, List<Int>>,
         lineCurves: Set<Int>,
+        lineRecords: Map<Int, LineRecord>,
         polylineCurves: Map<Int, List<Int>>
     ): StepLiteEntity? {
         val resolvedCurve = resolveCurve(curveWrappers)
@@ -714,9 +736,12 @@ class StepLiteParser(
             val compositePoints = compositeSegmentIds.toCompositeCurvePoints(
                 points = points,
                 splines = splines,
+                directions = directions,
+                vectors = vectors,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
+                lineRecords = lineRecords,
                 polylineCurves = polylineCurves
             )
                 ?.orientedBetween(
@@ -773,10 +798,12 @@ class StepLiteParser(
         parabolas: Map<Int, ParabolaRecord>,
         hyperbolas: Map<Int, HyperbolaRecord>,
         splines: Map<Int, BSplineRecord>,
+        vectors: Map<Int, VectorRecord>,
         curveWrappers: Map<Int, CurveWrapperRecord>,
         compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
         compositeCurves: Map<Int, List<Int>>,
         lineCurves: Set<Int>,
+        lineRecords: Map<Int, LineRecord>,
         polylineCurves: Map<Int, List<Int>>
     ): StepLiteEntity? {
         val start = trimStartPointId?.let(points::get)
@@ -799,10 +826,12 @@ class StepLiteParser(
                 parabolas = parabolas,
                 hyperbolas = hyperbolas,
                 splines = splines,
+                vectors = vectors,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
                 lineCurves = lineCurves,
+                lineRecords = lineRecords,
                 polylineCurves = polylineCurves
             )
         }
@@ -825,9 +854,12 @@ class StepLiteParser(
             sameSense = sameSense,
             points = points,
             splines = splines,
+            directions = directions,
+            vectors = vectors,
             curveWrappers = curveWrappers,
             compositeSegments = compositeSegments,
             compositeCurves = compositeCurves,
+            lineRecords = lineRecords,
             polylineCurves = polylineCurves,
             depth = 0
         )?.let { StepLiteEntity.Polyline(points = it, sourceId = sourceId) }
@@ -836,9 +868,12 @@ class StepLiteParser(
     private fun List<Int>.toCompositeCurvePoints(
         points: Map<Int, StepLitePoint>,
         splines: Map<Int, BSplineRecord>,
+        directions: Map<Int, DirectionRecord>,
+        vectors: Map<Int, VectorRecord>,
         curveWrappers: Map<Int, CurveWrapperRecord>,
         compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
         compositeCurves: Map<Int, List<Int>>,
+        lineRecords: Map<Int, LineRecord>,
         polylineCurves: Map<Int, List<Int>>,
         depth: Int = 0
     ): List<StepLitePoint>? {
@@ -850,9 +885,12 @@ class StepLiteParser(
                 sameSense = segment.sameSense,
                 points = points,
                 splines = splines,
+                directions = directions,
+                vectors = vectors,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
+                lineRecords = lineRecords,
                 polylineCurves = polylineCurves,
                 depth = depth + 1
             ) ?: return null
@@ -869,9 +907,12 @@ class StepLiteParser(
         sameSense: Boolean,
         points: Map<Int, StepLitePoint>,
         splines: Map<Int, BSplineRecord>,
+        directions: Map<Int, DirectionRecord>,
+        vectors: Map<Int, VectorRecord>,
         curveWrappers: Map<Int, CurveWrapperRecord>,
         compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
         compositeCurves: Map<Int, List<Int>>,
+        lineRecords: Map<Int, LineRecord>,
         polylineCurves: Map<Int, List<Int>>,
         depth: Int
     ): List<StepLitePoint>? {
@@ -883,9 +924,12 @@ class StepLiteParser(
                 sameSense = sameSense == wrapper.sameSense,
                 points = points,
                 splines = splines,
+                directions = directions,
+                vectors = vectors,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
+                lineRecords = lineRecords,
                 polylineCurves = polylineCurves,
                 depth = depth + 1
             )
@@ -896,11 +940,23 @@ class StepLiteParser(
             return compositeSegmentIds.toCompositeCurvePoints(
                 points = points,
                 splines = splines,
+                directions = directions,
+                vectors = vectors,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
+                lineRecords = lineRecords,
                 polylineCurves = polylineCurves,
                 depth = depth + 1
+            )?.let { if (sameSense) it else it.asReversed() }
+        }
+
+        val line = lineRecords[this]
+        if (line != null) {
+            return line.toPoints(
+                points = points,
+                directions = directions,
+                vectors = vectors
             )?.let { if (sameSense) it else it.asReversed() }
         }
 

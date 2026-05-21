@@ -598,6 +598,27 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesCompositeLineSegmentsAsDedupedLightweightPolylines() {
+        val result = StepLiteParser().parse(CompositeLineCurveStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val composite = document.entities.single()
+        assertTrue(composite is StepLiteEntity.Polyline)
+        composite as StepLiteEntity.Polyline
+        assertEquals(3, composite.points.size)
+        assertClose(0.0, composite.points[0].x)
+        assertClose(0.0, composite.points[0].y)
+        assertClose(4.0, composite.points[1].x)
+        assertClose(0.0, composite.points[1].y)
+        assertClose(4.0, composite.points[2].x)
+        assertClose(5.0, composite.points[2].y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesPolyLoopsAsClosedLightweightPolylines() {
         val result = StepLiteParser().parse(PolyLoopStep.byteInputStream())
 
@@ -1599,6 +1620,34 @@ class StepLiteParserTest {
             #41=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.F.,#31);
             #50=COMPOSITE_CURVE('',(#40,#41),.F.);
             #60=EDGE_CURVE('',#20,#21,#50,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val CompositeLineCurveStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom composite line curve STEP fixture'),'2;1');
+            FILE_NAME('composite-line-curve.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Composite Line Curve Fixture','Composite Line Curve Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(4.,0.,0.));
+            #12=DIRECTION('',(2.,0.,0.));
+            #13=DIRECTION('',(0.,3.,0.));
+            #14=VECTOR('',#12,4.);
+            #15=VECTOR('',#13,5.);
+            #20=LINE('',#10,#14);
+            #21=LINE('',#11,#15);
+            #30=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#20);
+            #31=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#21);
+            #40=COMPOSITE_CURVE('',(#30,#31),.F.);
+            #50=GEOMETRIC_CURVE_SET('',(#40));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
