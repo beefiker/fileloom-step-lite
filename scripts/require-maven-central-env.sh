@@ -19,6 +19,14 @@ release_version() {
   fi
 }
 
+require_release_version_shape() {
+  local version="$1"
+  if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+    echo "Maven Central release version must match MAJOR.MINOR.PATCH with optional qualifier: ${version}" >&2
+    exit 1
+  fi
+}
+
 case "${TARGET}" in
   snapshot)
     require_env MAVEN_CENTRAL_USERNAME
@@ -49,6 +57,7 @@ case "${TARGET}" in
       echo "Maven Central release version must not start with v; tag pushes may use v* but artifact versions should not: ${VERSION}" >&2
       exit 1
     fi
+    require_release_version_shape "${VERSION}"
     ;;
   *)
     echo "Unknown Maven Central target: ${TARGET}" >&2

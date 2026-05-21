@@ -57,6 +57,7 @@ class StepLitePublishingTest {
         assertTrue(readme.contains("publishAllPublicationsToCentralSnapshotsRepository"))
         assertTrue(readme.contains("publishAllPublicationsToCentralReleaseRepository"))
         assertTrue(readme.contains("release_version` such as `0.1.0`"))
+        assertTrue(readme.contains("MAJOR.MINOR.PATCH"))
         assertTrue(readme.contains("push a tag such as `v0.1.0`"))
         assertTrue(readme.contains("checkPublishedArtifactFootprint"))
     }

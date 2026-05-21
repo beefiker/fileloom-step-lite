@@ -71,7 +71,7 @@ Check publish inputs locally without uploading:
 ./scripts/require-maven-central-env.sh release
 ```
 
-The release preflight intentionally rejects `MAVEN_CENTRAL_NAMESPACE` values other than `dev.jaeyoung` so this artifact cannot be staged under the wrong Central Portal namespace. Manual release versions must be artifact versions such as `0.1.0`; tag pushes may use `v0.1.0` because the workflow strips the tag prefix before publishing.
+The release preflight intentionally rejects `MAVEN_CENTRAL_NAMESPACE` values other than `dev.jaeyoung` so this artifact cannot be staged under the wrong Central Portal namespace. Manual release versions must be artifact versions such as `0.1.0`; the accepted shape is `MAJOR.MINOR.PATCH` with an optional qualifier such as `0.1.0-rc.1`. Tag pushes may use `v0.1.0` because the workflow strips the tag prefix before publishing.
 
 Publish a snapshot:
 

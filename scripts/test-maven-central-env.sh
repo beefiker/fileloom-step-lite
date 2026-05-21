@@ -76,6 +76,14 @@ expect_failure "release version must not start with v" env -i \
   SIGNING_PASSWORD=fake-pass \
   WORKFLOW_RELEASE_VERSION=v0.1.0 \
   bash "${CHECK_SCRIPT}" release
+expect_failure "release version must match MAJOR.MINOR.PATCH" env -i \
+  MAVEN_CENTRAL_USERNAME=token-user \
+  MAVEN_CENTRAL_PASSWORD=token-pass \
+  MAVEN_CENTRAL_NAMESPACE=dev.jaeyoung \
+  SIGNING_KEY=fake-key \
+  SIGNING_PASSWORD=fake-pass \
+  WORKFLOW_RELEASE_VERSION=0.1 \
+  bash "${CHECK_SCRIPT}" release
 expect_success env -i \
   MAVEN_CENTRAL_USERNAME=token-user \
   MAVEN_CENTRAL_PASSWORD=token-pass \
