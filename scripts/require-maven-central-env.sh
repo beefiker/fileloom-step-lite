@@ -27,6 +27,7 @@ case "${TARGET}" in
   release)
     require_env MAVEN_CENTRAL_USERNAME
     require_env MAVEN_CENTRAL_PASSWORD
+    require_env MAVEN_CENTRAL_NAMESPACE
     require_env SIGNING_KEY
     require_env SIGNING_PASSWORD
 
@@ -45,4 +46,3 @@ case "${TARGET}" in
     exit 1
     ;;
 esac
-

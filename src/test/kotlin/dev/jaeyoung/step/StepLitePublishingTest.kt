@@ -108,6 +108,7 @@ class StepLitePublishingTest {
         assertTrue(workflowText.contains("/manual/upload/defaultRepository/${'$'}{MAVEN_CENTRAL_NAMESPACE}"))
         assertTrue(workflowText.contains("Authorization: Bearer"))
         assertTrue(workflowText.contains("curl --fail-with-body"))
-        assertTrue(readme.contains("manual/upload/defaultRepository/dev.jaeyoung"))
+        assertTrue(readme.contains("MAVEN_CENTRAL_NAMESPACE=\"dev.jaeyoung\""))
+        assertTrue(readme.contains("manual/upload/defaultRepository/${'$'}MAVEN_CENTRAL_NAMESPACE"))
     }
 }

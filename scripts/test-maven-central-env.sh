@@ -42,11 +42,20 @@ expect_success env -i \
 expect_failure "SIGNING_KEY" env -i \
   MAVEN_CENTRAL_USERNAME=token-user \
   MAVEN_CENTRAL_PASSWORD=token-pass \
+  MAVEN_CENTRAL_NAMESPACE=dev.jaeyoung \
+  WORKFLOW_RELEASE_VERSION=0.1.0 \
+  bash "${CHECK_SCRIPT}" release
+expect_failure "MAVEN_CENTRAL_NAMESPACE" env -i \
+  MAVEN_CENTRAL_USERNAME=token-user \
+  MAVEN_CENTRAL_PASSWORD=token-pass \
+  SIGNING_KEY=fake-key \
+  SIGNING_PASSWORD=fake-pass \
   WORKFLOW_RELEASE_VERSION=0.1.0 \
   bash "${CHECK_SCRIPT}" release
 expect_failure "release version must not end with -SNAPSHOT" env -i \
   MAVEN_CENTRAL_USERNAME=token-user \
   MAVEN_CENTRAL_PASSWORD=token-pass \
+  MAVEN_CENTRAL_NAMESPACE=dev.jaeyoung \
   SIGNING_KEY=fake-key \
   SIGNING_PASSWORD=fake-pass \
   WORKFLOW_RELEASE_VERSION=0.1.0-SNAPSHOT \
@@ -54,6 +63,7 @@ expect_failure "release version must not end with -SNAPSHOT" env -i \
 expect_success env -i \
   MAVEN_CENTRAL_USERNAME=token-user \
   MAVEN_CENTRAL_PASSWORD=token-pass \
+  MAVEN_CENTRAL_NAMESPACE=dev.jaeyoung \
   SIGNING_KEY=fake-key \
   SIGNING_PASSWORD=fake-pass \
   WORKFLOW_RELEASE_VERSION=0.1.0 \

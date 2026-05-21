@@ -59,6 +59,7 @@ Create a Central Portal user token and set its username/password as Gradle prope
 ```bash
 export MAVEN_CENTRAL_USERNAME="..."
 export MAVEN_CENTRAL_PASSWORD="..."
+export MAVEN_CENTRAL_NAMESPACE="dev.jaeyoung"
 export SIGNING_KEY="$(cat private-key.asc)"
 export SIGNING_PASSWORD="..."
 ```
@@ -92,7 +93,7 @@ Release artifacts published through the Central Portal OSSRH Staging API still n
 curl --fail-with-body \
   --request POST \
   --header "Authorization: Bearer $(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')" \
-  "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/dev.jaeyoung"
+  "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/$MAVEN_CENTRAL_NAMESPACE"
 ```
 
 Publishing references:
