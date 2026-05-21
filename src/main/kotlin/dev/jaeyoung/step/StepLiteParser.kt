@@ -421,7 +421,9 @@ class StepLiteParser(
                 orientedEdges = orientedEdges
             )?.let { loop ->
                 entities += loop
-                loopEdgeIds += orientedEdgeIds.mapNotNull { orientedEdges[it]?.edgeId }
+                loopEdgeIds += orientedEdgeIds.mapNotNull { edgeId ->
+                    orientedEdges[edgeId]?.edgeId ?: edgeId.takeIf(edges::containsKey)
+                }
             }
         }
         for (edge in edges.values) {
@@ -721,14 +723,16 @@ class StepLiteParser(
         orientedEdges: Map<Int, OrientedEdgeRecord>
     ): StepLiteEntity.Polyline? {
         val merged = ArrayList<StepLitePoint>()
-        for (orientedEdgeId in this) {
-            val orientedEdge = orientedEdges[orientedEdgeId] ?: return null
-            val edge = edges[orientedEdge.edgeId] ?: return null
-            val startVertexId = if (orientedEdge.sameSense) edge.startVertexId else edge.endVertexId
-            val endVertexId = if (orientedEdge.sameSense) edge.endVertexId else edge.startVertexId
+        for (loopMemberId in this) {
+            val orientedEdge = orientedEdges[loopMemberId]
+            val memberEdgeId = orientedEdge?.edgeId ?: loopMemberId
+            val memberSameSense = orientedEdge?.sameSense ?: true
+            val edge = edges[memberEdgeId] ?: return null
+            val startVertexId = if (memberSameSense) edge.startVertexId else edge.endVertexId
+            val endVertexId = if (memberSameSense) edge.endVertexId else edge.startVertexId
             val start = vertexPoints[startVertexId]?.let(points::get) ?: return null
             val end = vertexPoints[endVertexId]?.let(points::get) ?: return null
-            val segment = edge.copy(sameSense = edge.sameSense == orientedEdge.sameSense)
+            val segment = edge.copy(sameSense = edge.sameSense == memberSameSense)
                 .toEntity(
                     start = start,
                     end = end,

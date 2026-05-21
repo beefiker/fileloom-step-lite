@@ -685,6 +685,31 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesDirectEdgeReferencesInsideEdgeLoops() {
+        val result = StepLiteParser().parse(DirectEdgeLoopStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val loop = document.entities.single()
+        assertTrue(loop is StepLiteEntity.Polyline)
+        loop as StepLiteEntity.Polyline
+        assertEquals(5, loop.points.size)
+        assertClose(0.0, loop.points[0].x)
+        assertClose(0.0, loop.points[0].y)
+        assertClose(8.0, loop.points[1].x)
+        assertClose(0.0, loop.points[1].y)
+        assertClose(8.0, loop.points[2].x)
+        assertClose(5.0, loop.points[2].y)
+        assertClose(0.0, loop.points[3].x)
+        assertClose(5.0, loop.points[3].y)
+        assertClose(0.0, loop.points[4].x)
+        assertClose(0.0, loop.points[4].y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun orientsCurvedEdgeLoopSegmentsToTopologyVertices() {
         val result = StepLiteParser().parse(ReversedPolylineEdgeLoopStep.byteInputStream())
 
@@ -2006,6 +2031,48 @@ class StepLiteParserTest {
             #90=DIRECTION('',(1.,0.,0.));
             #91=DIRECTION('',(0.,1.,0.));
             #92=DIRECTION('',(1.,0.,0.));
+            #93=DIRECTION('',(0.,-1.,0.));
+            #94=DIRECTION('',(0.,0.,1.));
+            #100=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val DirectEdgeLoopStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom direct edge loop STEP fixture'),'2;1');
+            FILE_NAME('direct-edge-loop.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Direct Edge Loop Fixture','Direct Edge Loop Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(8.,0.,0.));
+            #12=CARTESIAN_POINT('',(8.,5.,0.));
+            #13=CARTESIAN_POINT('',(0.,5.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#11);
+            #22=VERTEX_POINT('',#12);
+            #23=VERTEX_POINT('',#13);
+            #30=LINE('',#10,#90);
+            #31=LINE('',#11,#91);
+            #32=LINE('',#12,#92);
+            #33=LINE('',#13,#93);
+            #40=EDGE_CURVE('',#20,#21,#30,.T.);
+            #41=EDGE_CURVE('',#21,#22,#31,.T.);
+            #42=EDGE_CURVE('',#22,#23,#32,.T.);
+            #43=EDGE_CURVE('',#23,#20,#33,.T.);
+            #50=EDGE_LOOP('',(#40,#41,#42,#43));
+            #60=FACE_OUTER_BOUND('',#50,.T.);
+            #70=ADVANCED_FACE('',(#60),#80,.T.);
+            #80=PLANE('',#81);
+            #81=AXIS2_PLACEMENT_3D('',#10,#94,#90);
+            #90=DIRECTION('',(1.,0.,0.));
+            #91=DIRECTION('',(0.,1.,0.));
+            #92=DIRECTION('',(-1.,0.,0.));
             #93=DIRECTION('',(0.,-1.,0.));
             #94=DIRECTION('',(0.,0.,1.));
             #100=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
