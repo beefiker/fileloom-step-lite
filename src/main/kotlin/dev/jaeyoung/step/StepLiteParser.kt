@@ -156,6 +156,7 @@ class StepLiteParser(
         val compositeCurves = linkedMapOf<Int, List<Int>>()
         val lineCurves = linkedSetOf<Int>()
         val polylineCurves = linkedMapOf<Int, List<Int>>()
+        val polyLoops = linkedMapOf<Int, List<Int>>()
         val edges = ArrayList<EdgeCurveRecord>()
         var productName = ""
         var unit = StepLiteUnit.UNKNOWN
@@ -218,6 +219,10 @@ class StepLiteParser(
                     val polyline = record.args.toPolylineRecord()
                     if (polyline != null) polylineCurves[record.id] = polyline
                 }
+                "POLY_LOOP" -> {
+                    val loop = record.args.toPolyLoopRecord()
+                    if (loop != null) polyLoops[record.id] = loop
+                }
                 "B_SPLINE_CURVE_WITH_KNOTS" -> {
                     val spline = record.args.toBSplineRecord()
                     if (spline != null) splines[record.id] = spline
@@ -263,6 +268,8 @@ class StepLiteParser(
                     if (record.args.entityArgs("LINE") != null) lineCurves += record.id
                     val polyline = record.args.entityArgs("POLYLINE")?.toPolylineRecord()
                     if (polyline != null) polylineCurves[record.id] = polyline
+                    val polyLoop = record.args.entityArgs("POLY_LOOP")?.toPolyLoopRecord()
+                    if (polyLoop != null) polyLoops[record.id] = polyLoop
                     val circle = record.args.entityArgs("CIRCLE")?.toCircleRecord()
                     if (circle != null) circles[record.id] = circle
                     val ellipse = record.args.entityArgs("ELLIPSE")?.toEllipseRecord()
@@ -319,7 +326,7 @@ class StepLiteParser(
             }
         }
 
-        val entities = ArrayList<StepLiteEntity>(min(edges.size, maxEntities))
+        val entities = ArrayList<StepLiteEntity>(min(edges.size + polyLoops.size, maxEntities))
         for (edge in edges) {
             if (entities.size >= maxEntities) break
             val start = vertexPoints[edge.startVertexId]?.let(points::get)
@@ -349,6 +356,15 @@ class StepLiteParser(
                 }
             } else {
                 unsupported += 1
+            }
+        }
+        for ((sourceId, pointIds) in polyLoops) {
+            if (entities.size >= maxEntities) break
+            pointIds.toClosedPolylinePoints(points)?.let { loopPoints ->
+                entities += StepLiteEntity.Polyline(
+                    points = loopPoints,
+                    sourceId = sourceId
+                )
             }
         }
 
@@ -1077,6 +1093,10 @@ class StepLiteParser(
         return refs().takeIf { it.size >= 2 }
     }
 
+    private fun String.toPolyLoopRecord(): List<Int>? {
+        return refs().takeIf { it.size >= 3 }
+    }
+
     private fun String.toBSplineRecord(
         degree: Int,
         controlPointIds: List<Int>,
@@ -1651,6 +1671,19 @@ private fun List<StepLitePoint>.dedupeConsecutivePoints(): List<StepLitePoint> {
         }
     }
     return points
+}
+
+private fun List<Int>.toClosedPolylinePoints(pointsById: Map<Int, StepLitePoint>): List<StepLitePoint>? {
+    val loopPoints = mapNotNull(pointsById::get)
+        .takeIf { it.size == size && it.size >= 3 }
+        ?.dedupeConsecutivePoints()
+        ?: return null
+    if (loopPoints.size < 3) return null
+    return if (loopPoints.first().samePositionAs(loopPoints.last())) {
+        loopPoints
+    } else {
+        loopPoints + loopPoints.first()
+    }
 }
 
 private fun StepLiteEntity.bounds(): StepLiteBounds {

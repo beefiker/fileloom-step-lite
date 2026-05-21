@@ -598,6 +598,27 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesPolyLoopsAsClosedLightweightPolylines() {
+        val result = StepLiteParser().parse(PolyLoopStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val loop = document.entities.single()
+        assertTrue(loop is StepLiteEntity.Polyline)
+        loop as StepLiteEntity.Polyline
+        assertEquals(5, loop.points.size)
+        assertClose(0.0, loop.points.first().x)
+        assertClose(0.0, loop.points.first().y)
+        assertClose(0.0, loop.points.last().x)
+        assertClose(0.0, loop.points.last().y)
+        assertClose(8.0, document.bounds.max.x)
+        assertClose(5.0, document.bounds.max.y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesComplexRationalBSplineRecordsAsLightweightPolylines() {
         val result = StepLiteParser().parse(ComplexRationalBSplineStep.byteInputStream())
 
@@ -1454,6 +1475,33 @@ class StepLiteParserTest {
             #41=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.F.,#31);
             #50=COMPOSITE_CURVE('',(#40,#41),.F.);
             #60=EDGE_CURVE('',#20,#21,#50,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val PolyLoopStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom poly loop STEP fixture'),'2;1');
+            FILE_NAME('poly-loop.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Poly Loop Fixture','Poly Loop Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(8.,0.,0.));
+            #12=CARTESIAN_POINT('',(8.,5.,0.));
+            #13=CARTESIAN_POINT('',(0.,5.,0.));
+            #20=POLY_LOOP('',(#10,#11,#12,#13));
+            #30=FACE_OUTER_BOUND('',#20,.T.);
+            #31=ADVANCED_FACE('',(#30),#40,.T.);
+            #40=PLANE('',#41);
+            #41=AXIS2_PLACEMENT_3D('',#10,#42,#43);
+            #42=DIRECTION('',(0.,0.,1.));
+            #43=DIRECTION('',(1.,0.,0.));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
