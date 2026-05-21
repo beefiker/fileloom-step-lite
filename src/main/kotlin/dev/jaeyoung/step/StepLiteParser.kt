@@ -1042,8 +1042,7 @@ class StepLiteParser(
 
         val polylinePointIds = polylineCurves[resolvedCurveId]
         if (polylinePointIds != null) {
-            val polylinePoints = polylinePointIds.mapNotNull(points::get)
-                .takeIf { it.size >= 2 }
+            val polylinePoints = polylinePointIds.toPolylinePoints(points)
                 ?.applyPointTrim(resolvedCurve)
                 ?.orientedBetween(
                     start = if (resolvedSameSense) basisStart else basisEnd,

@@ -195,6 +195,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsPolylineEdgesWithMissingIntermediatePointsInsteadOfSkippingThem() {
+        val result = StepLiteParser().parse(MissingPolylinePointStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun parsesComplexLineAndPolylineRecordsAsLightweightCurves() {
         val result = StepLiteParser().parse(ComplexLinePolylineStep.byteInputStream())
 
@@ -1674,6 +1684,28 @@ class StepLiteParserTest {
             #3=APPLICATION_CONTEXT('fileloom step lite');
             #10=CARTESIAN_POINT('',(0.,0.,0.));
             #11=CARTESIAN_POINT('',(5.,8.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#12);
+            #30=POLYLINE('',(#10,#11,#12));
+            #40=EDGE_CURVE('',#20,#21,#30,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val MissingPolylinePointStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom missing polyline point STEP fixture'),'2;1');
+            FILE_NAME('missing-polyline-point.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Missing Polyline Point Fixture','Missing Polyline Point Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
             #12=CARTESIAN_POINT('',(10.,0.,0.));
             #20=VERTEX_POINT('',#10);
             #21=VERTEX_POINT('',#12);
