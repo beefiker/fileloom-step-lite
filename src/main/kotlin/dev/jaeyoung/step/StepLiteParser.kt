@@ -247,6 +247,10 @@ class StepLiteParser(
                     val wrappedCurve = record.args.toBasisCurveWrapperRecord()
                     if (wrappedCurve != null) curveWrappers[record.id] = wrappedCurve
                 }
+                "OFFSET_CURVE_3D" -> {
+                    val offsetCurve = record.args.toOffsetCurveRecord()
+                    if (offsetCurve != null) curveWrappers[record.id] = offsetCurve
+                }
                 "COMPOSITE_CURVE_SEGMENT" -> {
                     val segment = record.args.toCompositeCurveSegmentRecord()
                     if (segment != null) compositeSegments[record.id] = segment
@@ -297,6 +301,8 @@ class StepLiteParser(
                     if (surfaceCurve != null) curveWrappers[record.id] = surfaceCurve
                     val seamCurve = record.args.entityArgs("SEAM_CURVE")?.toBasisCurveWrapperRecord()
                     if (seamCurve != null) curveWrappers[record.id] = seamCurve
+                    val offsetCurve = record.args.entityArgs("OFFSET_CURVE_3D")?.toOffsetCurveRecord()
+                    if (offsetCurve != null) curveWrappers[record.id] = offsetCurve
                     val compositeSegment = record.args.entityArgs("COMPOSITE_CURVE_SEGMENT")
                         ?.toCompositeCurveSegmentRecord()
                     if (compositeSegment != null) compositeSegments[record.id] = compositeSegment
@@ -579,7 +585,9 @@ class StepLiteParser(
         val basisCurveId: Int,
         val sameSense: Boolean,
         val trimStartPointId: Int? = null,
-        val trimEndPointId: Int? = null
+        val trimEndPointId: Int? = null,
+        val offsetDistance: Double? = null,
+        val offsetDirectionId: Int? = null
     )
 
     private data class CompositeCurveSegmentRecord(
@@ -855,14 +863,14 @@ class StepLiteParser(
             points = points,
             directions = directions,
             placements = placements
-        )?.let { return it }
+        )?.let { return applyOffset(it, directions) }
 
         ellipses[basisCurveId]?.toStandalonePolyline(
             sourceId = sourceId,
             points = points,
             directions = directions,
             placements = placements
-        )?.let { return it }
+        )?.let { return applyOffset(it, directions) }
 
         return basisCurveId.toBoundedCurvePoints(
             sameSense = sameSense,
@@ -881,7 +889,12 @@ class StepLiteParser(
             lineRecords = lineRecords,
             polylineCurves = polylineCurves,
             depth = 0
-        )?.let { StepLiteEntity.Polyline(points = it, sourceId = sourceId) }
+        )?.let { basisPoints ->
+            applyOffset(
+                StepLiteEntity.Polyline(points = basisPoints, sourceId = sourceId),
+                directions
+            )
+        }
     }
 
     private fun List<Int>.toCompositeCurvePoints(
@@ -958,10 +971,33 @@ class StepLiteParser(
             val trimStart = wrapper.trimStartPointId?.let(points::get)
             val trimEnd = wrapper.trimEndPointId?.let(points::get)
             if (trimStart != null && trimEnd != null) {
-                return wrapper.basisCurveId.toTrimmedBoundedCurvePoints(
+                return wrapper.applyOffset(
+                    wrapper.basisCurveId.toTrimmedBoundedCurvePoints(
+                        sameSense = wrapperSameSense,
+                        trimStart = trimStart,
+                        trimEnd = trimEnd,
+                        points = points,
+                        splines = splines,
+                        directions = directions,
+                        vectors = vectors,
+                        placements = placements,
+                        circles = circles,
+                        ellipses = ellipses,
+                        parabolas = parabolas,
+                        hyperbolas = hyperbolas,
+                        curveWrappers = curveWrappers,
+                        compositeSegments = compositeSegments,
+                        compositeCurves = compositeCurves,
+                        lineRecords = lineRecords,
+                        polylineCurves = polylineCurves,
+                        depth = depth + 1
+                    ),
+                    directions = directions
+                )
+            }
+            return wrapper.applyOffset(
+                wrapper.basisCurveId.toBoundedCurvePoints(
                     sameSense = wrapperSameSense,
-                    trimStart = trimStart,
-                    trimEnd = trimEnd,
                     points = points,
                     splines = splines,
                     directions = directions,
@@ -977,25 +1013,8 @@ class StepLiteParser(
                     lineRecords = lineRecords,
                     polylineCurves = polylineCurves,
                     depth = depth + 1
-                )
-            }
-            return wrapper.basisCurveId.toBoundedCurvePoints(
-                sameSense = wrapperSameSense,
-                points = points,
-                splines = splines,
-                directions = directions,
-                vectors = vectors,
-                placements = placements,
-                circles = circles,
-                ellipses = ellipses,
-                parabolas = parabolas,
-                hyperbolas = hyperbolas,
-                curveWrappers = curveWrappers,
-                compositeSegments = compositeSegments,
-                compositeCurves = compositeCurves,
-                lineRecords = lineRecords,
-                polylineCurves = polylineCurves,
-                depth = depth + 1
+                ),
+                directions = directions
             )
         }
 
@@ -1042,6 +1061,26 @@ class StepLiteParser(
         }
 
         return null
+    }
+
+    private fun CurveWrapperRecord.applyOffset(
+        points: List<StepLitePoint>?,
+        directions: Map<Int, DirectionRecord>
+    ): List<StepLitePoint>? {
+        val directionId = offsetDirectionId ?: return points
+        val distance = offsetDistance ?: return points
+        val direction = directions[directionId]?.normalizedOrNull() ?: return null
+        return points?.map { it.offsetBy(direction, distance) }
+    }
+
+    private fun CurveWrapperRecord.applyOffset(
+        entity: StepLiteEntity,
+        directions: Map<Int, DirectionRecord>
+    ): StepLiteEntity? {
+        val directionId = offsetDirectionId ?: return entity
+        val distance = offsetDistance ?: return entity
+        val direction = directions[directionId]?.normalizedOrNull() ?: return null
+        return entity.offsetBy(direction, distance)
     }
 
     private fun Int.toTrimmedBoundedCurvePoints(
@@ -1658,6 +1697,19 @@ class StepLiteParser(
         )
     }
 
+    private fun String.toOffsetCurveRecord(): CurveWrapperRecord? {
+        val fields = topLevelFields()
+        val basisCurveId = fields.getOrNull(1)?.refs()?.firstOrNull() ?: return null
+        val distance = fields.getOrNull(2)?.toStepDoubleOrNull() ?: return null
+        val directionId = fields.getOrNull(3)?.refs()?.firstOrNull() ?: return null
+        return CurveWrapperRecord(
+            basisCurveId = basisCurveId,
+            sameSense = true,
+            offsetDistance = distance,
+            offsetDirectionId = directionId
+        )
+    }
+
     private fun String.toCompositeCurveSegmentRecord(): CompositeCurveSegmentRecord? {
         val parentCurveId = refs().lastOrNull() ?: return null
         return CompositeCurveSegmentRecord(
@@ -1913,6 +1965,27 @@ private fun String.topLevelNumberTuples(): List<List<Double>> {
     return tuples
 }
 
+private fun String.topLevelFields(): List<String> {
+    val fields = ArrayList<String>()
+    var depth = 0
+    var fieldStart = 0
+    var index = 0
+    while (index < length) {
+        when (this[index]) {
+            '\'' -> index = skipStepString(index)
+            '(' -> depth += 1
+            ')' -> depth -= 1
+            ',' -> if (depth == 0) {
+                fields += substring(fieldStart, index).trim()
+                fieldStart = index + 1
+            }
+        }
+        index += 1
+    }
+    fields += substring(fieldStart).trim()
+    return fields
+}
+
 private fun String.deepNumberTuples(): List<List<Double>> {
     val tuples = ArrayList<List<Double>>()
     val tupleStarts = ArrayList<Int>()
@@ -2062,6 +2135,18 @@ private fun StepLitePoint.offsetBy(direction: DirectionRecord, distance: Double)
         y = y + direction.y * distance,
         z = z + direction.z * distance
     )
+}
+
+private fun StepLiteEntity.offsetBy(direction: DirectionRecord, distance: Double): StepLiteEntity {
+    return when (this) {
+        is StepLiteEntity.Line -> copy(
+            start = start.offsetBy(direction, distance),
+            end = end.offsetBy(direction, distance)
+        )
+        is StepLiteEntity.Circle -> copy(center = center.offsetBy(direction, distance))
+        is StepLiteEntity.Arc -> copy(center = center.offsetBy(direction, distance))
+        is StepLiteEntity.Polyline -> copy(points = points.map { it.offsetBy(direction, distance) })
+    }
 }
 
 private fun StepLitePoint.angleFrom(center: StepLitePoint): Double {

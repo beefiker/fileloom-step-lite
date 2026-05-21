@@ -804,6 +804,27 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun emitsStandaloneOffsetCurvesWithoutDuplicatingBasisCurves() {
+        val result = StepLiteParser().parse(StandaloneOffsetCurveStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val offset = document.entities.single()
+        assertTrue(offset is StepLiteEntity.Polyline)
+        offset as StepLiteEntity.Polyline
+        assertEquals(3, offset.points.size)
+        assertClose(0.0, offset.points[0].x)
+        assertClose(2.0, offset.points[0].y)
+        assertClose(4.0, offset.points[1].x)
+        assertClose(2.0, offset.points[1].y)
+        assertClose(4.0, offset.points[2].x)
+        assertClose(5.0, offset.points[2].y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesComplexRationalBSplineRecordsAsLightweightPolylines() {
         val result = StepLiteParser().parse(ComplexRationalBSplineStep.byteInputStream())
 
@@ -1897,6 +1918,29 @@ class StepLiteParserTest {
             #13=CARTESIAN_POINT('',(12.,0.,0.));
             #20=B_SPLINE_CURVE('',2,(#10,#11,#12,#13),.UNSPECIFIED.,.F.,.F.);
             #30=GEOMETRIC_CURVE_SET('',(#20));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StandaloneOffsetCurveStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom standalone offset curve STEP fixture'),'2;1');
+            FILE_NAME('standalone-offset-curve.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Standalone Offset Curve Fixture','Standalone Offset Curve Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(4.,0.,0.));
+            #12=CARTESIAN_POINT('',(4.,3.,0.));
+            #20=DIRECTION('',(0.,2.,0.));
+            #30=POLYLINE('',(#10,#11,#12));
+            #40=OFFSET_CURVE_3D('',#30,2.,#20,.F.);
+            #50=GEOMETRIC_CURVE_SET('',(#40));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
