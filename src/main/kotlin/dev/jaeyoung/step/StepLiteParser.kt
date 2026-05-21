@@ -150,6 +150,8 @@ class StepLiteParser(
         val ellipses = linkedMapOf<Int, EllipseRecord>()
         val parabolas = linkedMapOf<Int, ParabolaRecord>()
         val hyperbolas = linkedMapOf<Int, HyperbolaRecord>()
+        val vectors = linkedMapOf<Int, VectorRecord>()
+        val lineRecords = linkedMapOf<Int, LineRecord>()
         val splines = linkedMapOf<Int, BSplineRecord>()
         val curveWrappers = linkedMapOf<Int, CurveWrapperRecord>()
         val compositeSegments = linkedMapOf<Int, CompositeCurveSegmentRecord>()
@@ -212,8 +214,14 @@ class StepLiteParser(
                     val hyperbola = record.args.toHyperbolaRecord()
                     if (hyperbola != null) hyperbolas[record.id] = hyperbola
                 }
+                "VECTOR" -> {
+                    val vector = record.args.toVectorRecord()
+                    if (vector != null) vectors[record.id] = vector
+                }
                 "LINE" -> {
                     lineCurves += record.id
+                    val line = record.args.toLineRecord()
+                    if (line != null) lineRecords[record.id] = line
                 }
                 "POLYLINE" -> {
                     val polyline = record.args.toPolylineRecord()
@@ -265,7 +273,6 @@ class StepLiteParser(
                     if (vertexPoint != null) vertexPoints[record.id] = vertexPoint
                     val spline = record.args.toComplexBSplineRecord()
                     if (spline != null) splines[record.id] = spline
-                    if (record.args.entityArgs("LINE") != null) lineCurves += record.id
                     val polyline = record.args.entityArgs("POLYLINE")?.toPolylineRecord()
                     if (polyline != null) polylineCurves[record.id] = polyline
                     val polyLoop = record.args.entityArgs("POLY_LOOP")?.toPolyLoopRecord()
@@ -278,6 +285,8 @@ class StepLiteParser(
                     if (parabola != null) parabolas[record.id] = parabola
                     val hyperbola = record.args.entityArgs("HYPERBOLA")?.toHyperbolaRecord()
                     if (hyperbola != null) hyperbolas[record.id] = hyperbola
+                    val vector = record.args.entityArgs("VECTOR")?.toVectorRecord()
+                    if (vector != null) vectors[record.id] = vector
                     val trimmedCurve = record.args.entityArgs("TRIMMED_CURVE")?.toTrimmedCurveRecord()
                     if (trimmedCurve != null) curveWrappers[record.id] = trimmedCurve
                     val surfaceCurve = record.args.entityArgs("SURFACE_CURVE")?.toBasisCurveWrapperRecord()
@@ -289,6 +298,12 @@ class StepLiteParser(
                     if (compositeSegment != null) compositeSegments[record.id] = compositeSegment
                     val compositeCurve = record.args.entityArgs("COMPOSITE_CURVE")?.toCompositeCurveRecord()
                     if (compositeCurve != null) compositeCurves[record.id] = compositeCurve
+                    val lineArgs = record.args.entityArgs("LINE")
+                    if (lineArgs != null) {
+                        lineCurves += record.id
+                        val line = lineArgs.toLineRecord()
+                        if (line != null) lineRecords[record.id] = line
+                    }
                     val edgeCurveArgs = record.args.entityArgs("EDGE_CURVE")
                     if (edgeCurveArgs != null) {
                         val refs = edgeCurveArgs.refs()
@@ -329,7 +344,7 @@ class StepLiteParser(
         val entities = ArrayList<StepLiteEntity>(
             min(
                 edges.size + circles.size + ellipses.size + polyLoops.size +
-                    polylineCurves.size + splines.size + curveWrappers.size + compositeCurves.size,
+                    lineRecords.size + polylineCurves.size + splines.size + curveWrappers.size + compositeCurves.size,
                 maxEntities
             )
         )
@@ -368,6 +383,16 @@ class StepLiteParser(
             } else {
                 unsupported += 1
             }
+        }
+        for ((sourceId, line) in lineRecords) {
+            if (entities.size >= maxEntities) break
+            if (sourceId in referencedCurveIds) continue
+            line.toStandaloneEntity(
+                sourceId = sourceId,
+                points = points,
+                directions = directions,
+                vectors = vectors
+            )?.let(entities::add)
         }
         for ((sourceId, circle) in circles) {
             if (entities.size >= maxEntities) break
@@ -510,6 +535,16 @@ class StepLiteParser(
         val semiImagAxis: Double
     )
 
+    private data class VectorRecord(
+        val directionId: Int,
+        val magnitude: Double
+    )
+
+    private data class LineRecord(
+        val pointId: Int,
+        val vectorId: Int
+    )
+
     private data class BSplineRecord(
         val degree: Int,
         val controlPointIds: List<Int>,
@@ -540,6 +575,22 @@ class StepLiteParser(
         val curveId: Int,
         val sameSense: Boolean
     )
+
+    private fun LineRecord.toStandaloneEntity(
+        sourceId: Int,
+        points: Map<Int, StepLitePoint>,
+        directions: Map<Int, DirectionRecord>,
+        vectors: Map<Int, VectorRecord>
+    ): StepLiteEntity.Line? {
+        val start = points[pointId] ?: return null
+        val vector = vectors[vectorId] ?: return null
+        val direction = directions[vector.directionId]?.normalizedOrNull() ?: return null
+        return StepLiteEntity.Line(
+            start = start,
+            end = start.offsetBy(direction, vector.magnitude),
+            sourceId = sourceId
+        )
+    }
 
     private fun EdgeCurveRecord.toEntity(
         start: StepLitePoint,
@@ -1304,6 +1355,25 @@ class StepLiteParser(
 
     private fun String.toPolyLoopRecord(): List<Int>? {
         return refs().takeIf { it.size >= 3 }
+    }
+
+    private fun String.toVectorRecord(): VectorRecord? {
+        val directionId = refs().firstOrNull() ?: return null
+        val magnitude = topLevelNumbers().lastOrNull() ?: return null
+        if (magnitude <= 0.0) return null
+        return VectorRecord(
+            directionId = directionId,
+            magnitude = magnitude
+        )
+    }
+
+    private fun String.toLineRecord(): LineRecord? {
+        val refs = refs()
+        if (refs.size < 2) return null
+        return LineRecord(
+            pointId = refs[0],
+            vectorId = refs[1]
+        )
     }
 
     private fun String.toBSplineRecord(
