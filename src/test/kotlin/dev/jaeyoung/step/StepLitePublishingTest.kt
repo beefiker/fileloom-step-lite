@@ -79,4 +79,23 @@ class StepLitePublishingTest {
         assertTrue(buildFile.contains("tasks.named(\"check\")"))
         assertTrue(buildFile.contains("dependsOn(checkPublishedArtifactFootprint)"))
     }
+
+    @Test
+    fun githubActionsWorkflowPublishesSnapshotsAndReleasesAfterChecks() {
+        val workflow = File(".github/workflows/publish.yml")
+        assertTrue("Expected Maven publish workflow at ${workflow.path}", workflow.isFile)
+
+        val workflowText = workflow.readText()
+        assertTrue(workflowText.contains("actions/checkout@v4"))
+        assertTrue(workflowText.contains("actions/setup-java@v4"))
+        assertTrue(workflowText.contains("gradle/actions/setup-gradle@v4"))
+        assertTrue(workflowText.contains("./gradlew check"))
+        assertTrue(workflowText.contains("publishAllPublicationsToCentralSnapshotsRepository"))
+        assertTrue(workflowText.contains("publishAllPublicationsToCentralReleaseRepository"))
+        assertTrue(workflowText.contains("MAVEN_CENTRAL_USERNAME"))
+        assertTrue(workflowText.contains("MAVEN_CENTRAL_PASSWORD"))
+        assertTrue(workflowText.contains("SIGNING_KEY"))
+        assertTrue(workflowText.contains("SIGNING_PASSWORD"))
+        assertTrue(workflowText.contains("release_version"))
+    }
 }

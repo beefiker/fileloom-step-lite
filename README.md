@@ -64,11 +64,15 @@ Publish a snapshot:
 ./gradlew publishAllPublicationsToCentralSnapshotsRepository
 ```
 
+Or run the `Publish Maven` GitHub Actions workflow with target `snapshot`.
+
 Publish a release candidate:
 
 ```bash
 ./gradlew -PreleaseVersion=0.1.0 publishAllPublicationsToCentralReleaseRepository
 ```
+
+For GitHub Actions, set repository secrets named `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_KEY`, and `SIGNING_PASSWORD`. Then either run the `Publish Maven` workflow with target `release` and `release_version`, or push a tag such as `v0.1.0`.
 
 Release artifacts published through the Central Portal OSSRH Staging API still need the Central Portal deployment flow after upload.
 

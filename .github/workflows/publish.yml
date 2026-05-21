@@ -1,0 +1,74 @@
+name: Publish Maven
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Maven Central target repository.
+        required: true
+        default: snapshot
+        type: choice
+        options:
+          - snapshot
+          - release
+      release_version:
+        description: Release version without -SNAPSHOT. Required for manual release publishes.
+        required: false
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish Maven artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify parser
+        run: ./gradlew check
+
+      - name: Publish snapshot
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'snapshot' }}
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: ./gradlew publishAllPublicationsToCentralSnapshotsRepository
+
+      - name: Publish release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.target == 'release') }}
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          WORKFLOW_RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${WORKFLOW_RELEASE_VERSION}"
+          fi
+
+          if [ -z "${VERSION}" ]; then
+            echo "release_version is required for manual release publishes."
+            exit 1
+          fi
+
+          ./gradlew -PreleaseVersion="${VERSION}" publishAllPublicationsToCentralReleaseRepository
