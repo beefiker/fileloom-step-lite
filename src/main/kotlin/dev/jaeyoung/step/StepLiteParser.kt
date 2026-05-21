@@ -3057,7 +3057,8 @@ private fun String.toStepDoubleOrNull(): Double? {
         .removePrefix("+")
         .replace('D', 'E')
         .replace('d', 'E')
-    return normalized.toDoubleOrNull()
+    val value = normalized.toDoubleOrNull() ?: return null
+    return value.takeIf { it.isFinite() }
 }
 
 private fun String.resolveUnit(): StepLiteUnit {
