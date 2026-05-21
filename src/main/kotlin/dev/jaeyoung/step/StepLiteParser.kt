@@ -327,7 +327,11 @@ class StepLiteParser(
         }
 
         val entities = ArrayList<StepLiteEntity>(
-            min(edges.size + polyLoops.size + polylineCurves.size + splines.size + compositeCurves.size, maxEntities)
+            min(
+                edges.size + circles.size + ellipses.size + polyLoops.size +
+                    polylineCurves.size + splines.size + compositeCurves.size,
+                maxEntities
+            )
         )
         val referencedCurveIds = edges.asSequence()
             .map { it.curveId }
@@ -364,6 +368,26 @@ class StepLiteParser(
             } else {
                 unsupported += 1
             }
+        }
+        for ((sourceId, circle) in circles) {
+            if (entities.size >= maxEntities) break
+            if (sourceId in referencedCurveIds) continue
+            circle.toStandaloneEntity(
+                sourceId = sourceId,
+                points = points,
+                directions = directions,
+                placements = placements
+            )?.let(entities::add)
+        }
+        for ((sourceId, ellipse) in ellipses) {
+            if (entities.size >= maxEntities) break
+            if (sourceId in referencedCurveIds) continue
+            ellipse.toStandalonePolyline(
+                sourceId = sourceId,
+                points = points,
+                directions = directions,
+                placements = placements
+            )?.let(entities::add)
         }
         for ((sourceId, pointIds) in polylineCurves) {
             if (entities.size >= maxEntities) break
@@ -771,6 +795,34 @@ class StepLiteParser(
         )
     }
 
+    private fun CircleRecord.toStandaloneEntity(
+        sourceId: Int,
+        points: Map<Int, StepLitePoint>,
+        directions: Map<Int, DirectionRecord>,
+        placements: Map<Int, AxisPlacementRecord>
+    ): StepLiteEntity? {
+        val placement = placements[placementId] ?: return null
+        val center = points[placement.locationPointId] ?: return null
+        val basis = placement.toBasis(directions)
+        if (basis.isFlatInPreviewPlane()) {
+            return StepLiteEntity.Circle(
+                center = center,
+                radius = radius,
+                sourceId = sourceId
+            )
+        }
+        return StepLiteEntity.Polyline(
+            points = toPolylinePoints(
+                center = center,
+                basis = basis,
+                start = center.offsetBy(basis.xAxis, radius),
+                end = center.offsetBy(basis.xAxis, radius),
+                closed = true
+            ),
+            sourceId = sourceId
+        )
+    }
+
     private fun EllipseRecord.toPolylinePoints(
         center: StepLitePoint,
         basis: PlacementBasis,
@@ -787,6 +839,28 @@ class StepLiteParser(
             end = end,
             closed = closed,
             segmentCount = EllipseSegments
+        )
+    }
+
+    private fun EllipseRecord.toStandalonePolyline(
+        sourceId: Int,
+        points: Map<Int, StepLitePoint>,
+        directions: Map<Int, DirectionRecord>,
+        placements: Map<Int, AxisPlacementRecord>
+    ): StepLiteEntity.Polyline? {
+        val placement = placements[placementId] ?: return null
+        val center = points[placement.locationPointId] ?: return null
+        val basis = placement.toBasis(directions)
+        val start = center.offsetBy(basis.xAxis, majorRadius)
+        return StepLiteEntity.Polyline(
+            points = toPolylinePoints(
+                center = center,
+                basis = basis,
+                start = start,
+                end = start,
+                closed = true
+            ),
+            sourceId = sourceId
         )
     }
 
@@ -1578,6 +1652,14 @@ private fun StepLitePoint.lerp(other: StepLitePoint, alpha: Double): StepLitePoi
         x = x + (other.x - x) * alpha,
         y = y + (other.y - y) * alpha,
         z = z + (other.z - z) * alpha
+    )
+}
+
+private fun StepLitePoint.offsetBy(direction: DirectionRecord, distance: Double): StepLitePoint {
+    return StepLitePoint(
+        x = x + direction.x * distance,
+        y = y + direction.y * distance,
+        z = z + direction.z * distance
     )
 }
 

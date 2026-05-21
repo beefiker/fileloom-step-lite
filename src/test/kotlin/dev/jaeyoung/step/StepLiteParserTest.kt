@@ -648,6 +648,36 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun emitsStandaloneClosedConicsWithoutEdgeRecords() {
+        val result = StepLiteParser().parse(StandaloneClosedConicsStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(2, document.entities.size)
+        val circle = document.entities[0]
+        assertTrue(circle is StepLiteEntity.Circle)
+        circle as StepLiteEntity.Circle
+        assertClose(10.0, circle.center.x)
+        assertClose(10.0, circle.center.y)
+        assertClose(3.0, circle.radius)
+
+        val ellipse = document.entities[1]
+        assertTrue(ellipse is StepLiteEntity.Polyline)
+        ellipse as StepLiteEntity.Polyline
+        assertTrue(ellipse.points.size > 8)
+        assertClose(26.0, ellipse.points.first().x)
+        assertClose(10.0, ellipse.points.first().y)
+        assertClose(ellipse.points.first().x, ellipse.points.last().x)
+        assertClose(ellipse.points.first().y, ellipse.points.last().y)
+        assertClose(14.0, ellipse.points.minOf { it.x })
+        assertClose(26.0, ellipse.points.maxOf { it.x })
+        assertClose(7.0, ellipse.points.minOf { it.y })
+        assertClose(13.0, ellipse.points.maxOf { it.y })
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesComplexRationalBSplineRecordsAsLightweightPolylines() {
         val result = StepLiteParser().parse(ComplexRationalBSplineStep.byteInputStream())
 
@@ -1556,6 +1586,31 @@ class StepLiteParserTest {
             #30=POLYLINE('',(#10,#11,#12));
             #31=B_SPLINE_CURVE_WITH_KNOTS('',2,(#20,#21,#22),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);
             #40=GEOMETRIC_CURVE_SET('',(#30,#31));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StandaloneClosedConicsStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom standalone closed conics STEP fixture'),'2;1');
+            FILE_NAME('standalone-closed-conics.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Standalone Closed Conics Fixture','Standalone Closed Conics Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(10.,10.,0.));
+            #11=CARTESIAN_POINT('',(20.,10.,0.));
+            #12=DIRECTION('',(0.,0.,1.));
+            #13=DIRECTION('',(1.,0.,0.));
+            #14=AXIS2_PLACEMENT_3D('',#10,#12,#13);
+            #15=AXIS2_PLACEMENT_3D('',#11,#12,#13);
+            #20=CIRCLE('',#14,3.);
+            #21=ELLIPSE('',#15,6.,3.);
+            #30=GEOMETRIC_CURVE_SET('',(#20,#21));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
