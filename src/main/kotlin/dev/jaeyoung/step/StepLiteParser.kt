@@ -670,6 +670,8 @@ class StepLiteParser(
         val curveId: Int,
         val sameSense: Boolean,
         val offset: DirectionRecord? = null,
+        val trimStartPoint: StepLitePoint? = null,
+        val trimEndPoint: StepLitePoint? = null,
         val trimStartParameter: Double? = null,
         val trimEndParameter: Double? = null
     )
@@ -839,7 +841,7 @@ class StepLiteParser(
         lineRecords: Map<Int, LineRecord>,
         polylineCurves: Map<Int, List<Int>>
     ): StepLiteEntity? {
-        val resolvedCurve = resolveCurve(curveWrappers, directions) ?: return null
+        val resolvedCurve = resolveCurve(curveWrappers, directions, points) ?: return null
         val resolvedCurveId = resolvedCurve.curveId
         val resolvedSameSense = resolvedCurve.sameSense
         val resolvedOffset = resolvedCurve.offset
@@ -944,6 +946,12 @@ class StepLiteParser(
                     startParameter = trimStartParameter,
                     endParameter = trimEndParameter
                 )
+            } else if (resolvedCurve.trimStartPoint != null && resolvedCurve.trimEndPoint != null) {
+                spline.toPolylinePoints(points)
+                    ?.trimmedBetween(
+                        start = resolvedCurve.trimStartPoint,
+                        end = resolvedCurve.trimEndPoint
+                    )
             } else {
                 spline.toPolylinePoints(points)
             }
@@ -1009,11 +1017,14 @@ class StepLiteParser(
 
     private fun EdgeCurveRecord.resolveCurve(
         curveWrappers: Map<Int, CurveWrapperRecord>,
-        directions: Map<Int, DirectionRecord>
+        directions: Map<Int, DirectionRecord>,
+        points: Map<Int, StepLitePoint>
     ): ResolvedCurveRecord? {
         var id = curveId
         var sense = sameSense
         var offset: DirectionRecord? = null
+        var trimStartPoint: StepLitePoint? = null
+        var trimEndPoint: StepLitePoint? = null
         var trimStartParameter: Double? = null
         var trimEndParameter: Double? = null
         repeat(MaxCurveWrapperDepth) {
@@ -1021,6 +1032,8 @@ class StepLiteParser(
                 curveId = id,
                 sameSense = sense,
                 offset = offset,
+                trimStartPoint = trimStartPoint,
+                trimEndPoint = trimEndPoint,
                 trimStartParameter = trimStartParameter,
                 trimEndParameter = trimEndParameter
             )
@@ -1031,6 +1044,12 @@ class StepLiteParser(
                 val direction = directions[directionId]?.normalizedOrNull() ?: return null
                 val delta = direction.scale(offsetDistance ?: return null)
                 offset = offset?.plus(delta) ?: delta
+            }
+            val wrapperTrimStartPoint = wrapper.trimStartPointId?.let(points::get)
+            val wrapperTrimEndPoint = wrapper.trimEndPointId?.let(points::get)
+            if (wrapperTrimStartPoint != null && wrapperTrimEndPoint != null) {
+                trimStartPoint = if (wrapper.sameSense) wrapperTrimStartPoint else wrapperTrimEndPoint
+                trimEndPoint = if (wrapper.sameSense) wrapperTrimEndPoint else wrapperTrimStartPoint
             }
             val wrapperTrimStartParameter = wrapper.trimStartParameter
             val wrapperTrimEndParameter = wrapper.trimEndParameter
@@ -1045,6 +1064,8 @@ class StepLiteParser(
             curveId = id,
             sameSense = sense,
             offset = offset,
+            trimStartPoint = trimStartPoint,
+            trimEndPoint = trimEndPoint,
             trimStartParameter = trimStartParameter,
             trimEndParameter = trimEndParameter
         )
@@ -1434,6 +1455,12 @@ class StepLiteParser(
                 start = start,
                 end = end
             )
+        }
+
+        val spline = splines[this]
+        if (spline != null) {
+            return spline.toPolylinePoints(points)
+                ?.trimmedBetween(start = start, end = end)
         }
 
         return toBoundedCurvePoints(
@@ -2634,6 +2661,13 @@ private fun StepLitePoint.samePositionAs(other: StepLitePoint): Boolean {
         kotlin.math.abs(z - other.z) <= CoordinateTolerance
 }
 
+private fun StepLitePoint.squaredDistanceTo(other: StepLitePoint): Double {
+    val dx = x - other.x
+    val dy = y - other.y
+    val dz = z - other.z
+    return dx * dx + dy * dy + dz * dz
+}
+
 private fun StepLitePoint.lerp(other: StepLitePoint, alpha: Double): StepLitePoint {
     return StepLitePoint(
         x = x + (other.x - x) * alpha,
@@ -2793,6 +2827,38 @@ private fun List<StepLitePoint>.orientedBetween(start: StepLitePoint, end: StepL
     } else {
         this
     }
+}
+
+private fun List<StepLitePoint>.trimmedBetween(start: StepLitePoint, end: StepLitePoint): List<StepLitePoint>? {
+    if (size < 2) return null
+    val startIndex = indexOfClosestTo(start)
+    val endIndex = indexOfClosestTo(end)
+    val trimmed = ArrayList<StepLitePoint>(abs(endIndex - startIndex) + 2)
+    trimmed += start
+    if (startIndex <= endIndex) {
+        for (index in (startIndex + 1) until endIndex) {
+            trimmed += this[index]
+        }
+    } else {
+        for (index in (startIndex - 1) downTo (endIndex + 1)) {
+            trimmed += this[index]
+        }
+    }
+    trimmed += end
+    return trimmed.dedupeConsecutivePoints().takeIf { it.size >= 2 }
+}
+
+private fun List<StepLitePoint>.indexOfClosestTo(target: StepLitePoint): Int {
+    var closestIndex = 0
+    var closestDistance = this[0].squaredDistanceTo(target)
+    for (index in 1 until size) {
+        val distance = this[index].squaredDistanceTo(target)
+        if (distance < closestDistance) {
+            closestIndex = index
+            closestDistance = distance
+        }
+    }
+    return closestIndex
 }
 
 private fun List<StepLitePoint>.dedupeConsecutivePoints(): List<StepLitePoint> {
