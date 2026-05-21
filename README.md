@@ -71,7 +71,7 @@ Check publish inputs locally without uploading:
 ./scripts/require-maven-central-env.sh release
 ```
 
-The release preflight intentionally rejects `MAVEN_CENTRAL_NAMESPACE` values other than `dev.jaeyoung` so this artifact cannot be staged under the wrong Central Portal namespace.
+The release preflight intentionally rejects `MAVEN_CENTRAL_NAMESPACE` values other than `dev.jaeyoung` so this artifact cannot be staged under the wrong Central Portal namespace. Manual release versions must be artifact versions such as `0.1.0`; tag pushes may use `v0.1.0` because the workflow strips the tag prefix before publishing.
 
 Publish a snapshot:
 
@@ -87,7 +87,7 @@ Publish a release candidate:
 ./gradlew -PreleaseVersion=0.1.0 publishAllPublicationsToCentralReleaseRepository
 ```
 
-For GitHub Actions, set repository secrets named `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_KEY`, and `SIGNING_PASSWORD`. Then either run the `Publish Maven` workflow with target `release` and `release_version`, or push a tag such as `v0.1.0`.
+For GitHub Actions, set repository secrets named `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_KEY`, and `SIGNING_PASSWORD`. Then either run the `Publish Maven` workflow with target `release` and a `release_version` such as `0.1.0`, or push a tag such as `v0.1.0`.
 
 Release artifacts published through the Central Portal OSSRH Staging API still need to be uploaded from the staging compatibility service into Central Portal. The GitHub workflow runs this step automatically after a release upload:
 

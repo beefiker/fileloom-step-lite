@@ -45,6 +45,10 @@ case "${TARGET}" in
       echo "Maven Central release version must not end with -SNAPSHOT: ${VERSION}" >&2
       exit 1
     fi
+    if [[ "${VERSION}" == v* ]]; then
+      echo "Maven Central release version must not start with v; tag pushes may use v* but artifact versions should not: ${VERSION}" >&2
+      exit 1
+    fi
     ;;
   *)
     echo "Unknown Maven Central target: ${TARGET}" >&2

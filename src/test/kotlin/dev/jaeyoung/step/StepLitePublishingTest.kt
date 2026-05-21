@@ -55,6 +55,8 @@ class StepLitePublishingTest {
         assertTrue(readme.contains("SIGNING_PASSWORD"))
         assertTrue(readme.contains("publishAllPublicationsToCentralSnapshotsRepository"))
         assertTrue(readme.contains("publishAllPublicationsToCentralReleaseRepository"))
+        assertTrue(readme.contains("release_version` such as `0.1.0`"))
+        assertTrue(readme.contains("push a tag such as `v0.1.0`"))
         assertTrue(readme.contains("checkPublishedArtifactFootprint"))
     }
 
@@ -134,6 +136,7 @@ class StepLitePublishingTest {
         assertTrue(workflowText.contains("Authorization: Bearer"))
         assertTrue(workflowText.contains("curl --fail-with-body"))
         assertTrue(readme.contains("MAVEN_CENTRAL_NAMESPACE=\"dev.jaeyoung\""))
+        assertTrue(readme.contains("Manual release versions must be artifact versions such as `0.1.0`"))
         assertTrue(readme.contains("manual/upload/defaultRepository/${'$'}MAVEN_CENTRAL_NAMESPACE"))
     }
 }
