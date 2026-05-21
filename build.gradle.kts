@@ -26,6 +26,10 @@ java {
     withJavadocJar()
 }
 
+tasks.named<Jar>("javadocJar") {
+    from("README.md")
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
@@ -137,6 +141,22 @@ publishing {
             }
         }
     }
+}
+
+val checkMavenCentralArtifacts by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Checks Maven Central publication artifacts include required jars and metadata."
+    dependsOn(
+        tasks.named("jar"),
+        tasks.named("sourcesJar"),
+        tasks.named("javadocJar"),
+        tasks.named("generatePomFileForMavenJavaPublication")
+    )
+    commandLine("bash", "scripts/check-maven-central-artifacts.sh", version.toString())
+}
+
+tasks.named("check") {
+    dependsOn(checkMavenCentralArtifacts)
 }
 
 val isReleaseVersion = !version.toString().endsWith("SNAPSHOT")
