@@ -1599,10 +1599,12 @@ class StepLiteParser(
         val circleCenter = circlePlacement?.let { points[it.locationPointId] }
         if (circle != null && circlePlacement != null && circleCenter != null) {
             val basis = circlePlacement.toBasis(directions)
-            val start = circleCenter.pointOnPlacedConic(basis, circle.radius, circle.radius, startValue)
-            val end = circleCenter.pointOnPlacedConic(basis, circle.radius, circle.radius, endValue)
+            val forwardStart = circleCenter.pointOnPlacedConic(basis, circle.radius, circle.radius, startParameter)
+            val forwardEnd = circleCenter.pointOnPlacedConic(basis, circle.radius, circle.radius, endParameter)
+            val start = if (sameSense) forwardStart else forwardEnd
+            val end = if (sameSense) forwardEnd else forwardStart
             val closed = start.samePositionAs(end) && abs(endValue - startValue) > CoordinateTolerance
-            if (basis.isFlatInPreviewPlane()) {
+            if (basis.isFlatInPreviewPlane() && sameSense) {
                 return if (closed) {
                     StepLiteEntity.Circle(
                         center = circleCenter,
@@ -1619,14 +1621,15 @@ class StepLiteParser(
                     )
                 }
             }
+            val sampled = circle.toPolylinePoints(
+                center = circleCenter,
+                basis = basis,
+                start = forwardStart,
+                end = forwardEnd,
+                closed = closed
+            ).let { if (sameSense) it else it.asReversed() }
             return StepLiteEntity.Polyline(
-                points = circle.toPolylinePoints(
-                    center = circleCenter,
-                    basis = basis,
-                    start = start,
-                    end = end,
-                    closed = closed
-                ),
+                points = sampled,
                 sourceId = sourceId
             )
         }
@@ -1636,16 +1639,29 @@ class StepLiteParser(
         val ellipseCenter = ellipsePlacement?.let { points[it.locationPointId] }
         if (ellipse != null && ellipsePlacement != null && ellipseCenter != null) {
             val basis = ellipsePlacement.toBasis(directions)
-            val start = ellipseCenter.pointOnPlacedConic(basis, ellipse.majorRadius, ellipse.minorRadius, startValue)
-            val end = ellipseCenter.pointOnPlacedConic(basis, ellipse.majorRadius, ellipse.minorRadius, endValue)
+            val forwardStart = ellipseCenter.pointOnPlacedConic(
+                basis,
+                ellipse.majorRadius,
+                ellipse.minorRadius,
+                startParameter
+            )
+            val forwardEnd = ellipseCenter.pointOnPlacedConic(
+                basis,
+                ellipse.majorRadius,
+                ellipse.minorRadius,
+                endParameter
+            )
+            val start = if (sameSense) forwardStart else forwardEnd
+            val end = if (sameSense) forwardEnd else forwardStart
+            val sampled = ellipse.toPolylinePoints(
+                center = ellipseCenter,
+                basis = basis,
+                start = forwardStart,
+                end = forwardEnd,
+                closed = start.samePositionAs(end) && abs(endValue - startValue) > CoordinateTolerance
+            ).let { if (sameSense) it else it.asReversed() }
             return StepLiteEntity.Polyline(
-                points = ellipse.toPolylinePoints(
-                    center = ellipseCenter,
-                    basis = basis,
-                    start = start,
-                    end = end,
-                    closed = start.samePositionAs(end) && abs(endValue - startValue) > CoordinateTolerance
-                ),
+                points = sampled,
                 sourceId = sourceId
             )
         }

@@ -1021,6 +1021,38 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun emitsStandaloneReverseParameterTrimmedConicsAsShortPreviewCurves() {
+        val result = StepLiteParser().parse(StandaloneReverseParameterTrimmedConicStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(2, document.entities.size)
+        val circle = document.entities[0]
+        assertTrue(circle is StepLiteEntity.Polyline)
+        circle as StepLiteEntity.Polyline
+        assertTrue(circle.points.size > 4)
+        assertClose(5.0, circle.points.first().x)
+        assertClose(7.5, circle.points.first().y)
+        assertClose(7.5, circle.points.last().x)
+        assertClose(5.0, circle.points.last().y)
+        assertTrue(circle.points.minOf { it.x } >= 5.0 - 0.000001)
+        assertTrue(circle.points.minOf { it.y } >= 5.0 - 0.000001)
+
+        val ellipse = document.entities[1]
+        assertTrue(ellipse is StepLiteEntity.Polyline)
+        ellipse as StepLiteEntity.Polyline
+        assertTrue(ellipse.points.size > 4)
+        assertClose(20.0, ellipse.points.first().x)
+        assertClose(13.0, ellipse.points.first().y)
+        assertClose(26.0, ellipse.points.last().x)
+        assertClose(10.0, ellipse.points.last().y)
+        assertTrue(ellipse.points.minOf { it.x } >= 20.0 - 0.000001)
+        assertTrue(ellipse.points.minOf { it.y } >= 10.0 - 0.000001)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun emitsStandaloneParameterTrimmedOpenConicsWithoutEdgeRecords() {
         val result = StepLiteParser().parse(StandaloneParameterTrimmedOpenConicStep.byteInputStream())
 
@@ -2614,6 +2646,33 @@ class StepLiteParserTest {
             #21=ELLIPSE('',#15,6.,3.);
             #30=TRIMMED_CURVE('',#20,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(1.5707963267948966)),.T.,.PARAMETER.);
             #31=TRIMMED_CURVE('',#21,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(1.5707963267948966)),.T.,.PARAMETER.);
+            #40=GEOMETRIC_CURVE_SET('',(#30,#31));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StandaloneReverseParameterTrimmedConicStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom standalone reverse parameter trimmed conic STEP fixture'),'2;1');
+            FILE_NAME('standalone-reverse-parameter-trimmed-conic.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Standalone Reverse Parameter Trimmed Conic Fixture','Standalone Reverse Parameter Trimmed Conic Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(5.,5.,0.));
+            #11=CARTESIAN_POINT('',(20.,10.,0.));
+            #12=DIRECTION('',(0.,0.,1.));
+            #13=DIRECTION('',(1.,0.,0.));
+            #14=AXIS2_PLACEMENT_3D('',#10,#12,#13);
+            #15=AXIS2_PLACEMENT_3D('',#11,#12,#13);
+            #20=CIRCLE('',#14,2.5);
+            #21=ELLIPSE('',#15,6.,3.);
+            #30=TRIMMED_CURVE('',#20,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(1.5707963267948966)),.F.,.PARAMETER.);
+            #31=TRIMMED_CURVE('',#21,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(1.5707963267948966)),.F.,.PARAMETER.);
             #40=GEOMETRIC_CURVE_SET('',(#30,#31));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
