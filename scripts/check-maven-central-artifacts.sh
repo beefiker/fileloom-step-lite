@@ -4,6 +4,7 @@ set -euo pipefail
 VERSION="${1:-0.1.0-SNAPSHOT}"
 BASE="build/libs/fileloom-step-lite-${VERSION}"
 POM="build/publications/mavenJava/pom-default.xml"
+MODULE="build/publications/mavenJava/module.json"
 
 require_file() {
   local path="$1"
@@ -30,10 +31,19 @@ require_pom_text() {
   fi
 }
 
+require_module_text() {
+  local expected="$1"
+  if ! grep -Fq "${expected}" "${MODULE}"; then
+    echo "Missing Gradle module metadata: ${expected}" >&2
+    exit 1
+  fi
+}
+
 require_file "${BASE}.jar"
 require_file "${BASE}-sources.jar"
 require_file "${BASE}-javadoc.jar"
 require_file "${POM}"
+require_file "${MODULE}"
 require_file "LICENSE"
 
 require_zip_entry "${BASE}-sources.jar" "dev/jaeyoung/step/StepLiteParser.kt"
@@ -47,3 +57,7 @@ require_pom_text "<description>Lightweight dependency-free STEP/STP preview pars
 require_pom_text "<url>https://github.com/beefiker/fileloom-step-lite</url>"
 require_pom_text "<name>Apache-2.0</name>"
 require_pom_text "<developerConnection>scm:git:https://github.com/beefiker/fileloom-step-lite.git</developerConnection>"
+
+require_module_text "\"group\": \"dev.jaeyoung\""
+require_module_text "\"module\": \"fileloom-step-lite\""
+require_module_text "\"version\": \"${VERSION}\""

@@ -151,7 +151,8 @@ val checkMavenCentralArtifacts by tasks.registering(Exec::class) {
         tasks.named("jar"),
         tasks.named("sourcesJar"),
         tasks.named("javadocJar"),
-        tasks.named("generatePomFileForMavenJavaPublication")
+        tasks.named("generatePomFileForMavenJavaPublication"),
+        tasks.named("generateMetadataFileForMavenJavaPublication")
     )
     commandLine("bash", "scripts/check-maven-central-artifacts.sh", version.toString())
 }

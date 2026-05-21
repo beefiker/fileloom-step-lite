@@ -20,6 +20,7 @@ class StepLitePublishingTest {
     @Test
     fun publicationCarriesCentralPortalMetadataAndArtifacts() {
         val buildFile = File("build.gradle.kts").readText()
+        val artifactCheckScript = File("scripts/check-maven-central-artifacts.sh").readText()
 
         assertTrue(buildFile.contains("signing"))
         assertTrue(buildFile.contains("useInMemoryPgpKeys"))
@@ -36,6 +37,9 @@ class StepLitePublishingTest {
         assertTrue(buildFile.contains("https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/"))
         assertTrue(buildFile.contains("centralSnapshots"))
         assertTrue(buildFile.contains("https://central.sonatype.com/repository/maven-snapshots/"))
+        assertTrue(buildFile.contains("generateMetadataFileForMavenJavaPublication"))
+        assertTrue(artifactCheckScript.contains("build/publications/mavenJava/module.json"))
+        assertTrue(artifactCheckScript.contains("\\\"module\\\": \\\"fileloom-step-lite\\\""))
     }
 
     @Test
