@@ -356,7 +356,9 @@ private fun String.refs(): List<Int> {
     val refs = ArrayList<Int>()
     var index = 0
     while (index < length) {
-        if (this[index] == '#') {
+        if (this[index] == '\'') {
+            index = skipStepString(index) + 1
+        } else if (this[index] == '#') {
             var cursor = index + 1
             while (cursor < length && this[cursor].isDigit()) cursor += 1
             substring(index + 1, cursor).toIntOrNull()?.let(refs::add)
@@ -392,8 +394,10 @@ private fun String.firstString(): String? {
 private fun String.firstNumberTuple(minSize: Int): List<Double>? {
     var depth = 0
     var tupleStart = -1
-    for (index in indices) {
+    var index = 0
+    while (index < length) {
         when (this[index]) {
+            '\'' -> index = skipStepString(index)
             '(' -> {
                 depth += 1
                 if (depth == 1) tupleStart = index + 1
@@ -408,6 +412,7 @@ private fun String.firstNumberTuple(minSize: Int): List<Double>? {
                 depth -= 1
             }
         }
+        index += 1
     }
     return null
 }
@@ -424,9 +429,14 @@ private fun String.topLevelNumbers(): List<Double> {
         }
     }
 
-    for (index in indices) {
+    var index = 0
+    while (index < length) {
         val char = this[index]
         when {
+            char == '\'' -> {
+                flush(index)
+                index = skipStepString(index)
+            }
             char == '(' -> {
                 flush(index)
                 depth += 1
@@ -440,9 +450,25 @@ private fun String.topLevelNumbers(): List<Double> {
             }
             depth == 0 -> flush(index)
         }
+        index += 1
     }
     flush(length)
     return values
+}
+
+private fun String.skipStepString(start: Int): Int {
+    var index = start + 1
+    while (index < length) {
+        if (this[index] == '\'') {
+            if (getOrNull(index + 1) == '\'') {
+                index += 2
+                continue
+            }
+            return index
+        }
+        index += 1
+    }
+    return lastIndex
 }
 
 private fun Char.isNumberTokenChar(): Boolean {

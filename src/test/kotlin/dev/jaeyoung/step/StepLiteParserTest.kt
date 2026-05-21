@@ -93,6 +93,24 @@ class StepLiteParserTest {
         assertEquals(0, document.unsupportedEntityCount)
     }
 
+    @Test
+    fun ignoresReferencesAndTuplesInsideStepStrings() {
+        val result = StepLiteParser().parse(StringHeavyStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val line = document.entities.single()
+        assertTrue(line is StepLiteEntity.Line)
+        line as StepLiteEntity.Line
+        assertClose(0.0, line.start.x)
+        assertClose(0.0, line.start.y)
+        assertClose(10.0, line.end.x)
+        assertClose(20.0, line.end.y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
     private fun assertClose(expected: Double, actual: Double) {
         assertEquals(expected, actual, 0.000001)
     }
@@ -205,6 +223,30 @@ class StepLiteParserTest {
             #33=CARTESIAN_POINT('',(24.,20.,0.));
             #34=VERTEX_POINT('',#33);
             #35=EDGE_CURVE('',#34,#34,#32,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StringHeavyStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom string-heavy STEP fixture'),'2;1');
+            FILE_NAME('strings.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('String Fixture','String Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('start label (#404, #405)',(0.,0.,0.));
+            #11=CARTESIAN_POINT('end label (9.,9.) #406',(10.,20.,0.));
+            #20=VERTEX_POINT('start vertex #999',#10);
+            #21=VERTEX_POINT('end vertex #998',#11);
+            #30=LINE('line #997',#10,#90);
+            #50=EDGE_CURVE('edge #996',#20,#21,#30,.T.);
+            #90=VECTOR('',#91,1.);
+            #91=DIRECTION('',(1.,0.,0.));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
