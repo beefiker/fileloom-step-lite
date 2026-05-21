@@ -107,6 +107,24 @@ class StepLitePublishingTest {
     }
 
     @Test
+    fun githubActionsWorkflowChecksPushesAndPullRequestsWithoutPublishing() {
+        val workflow = File(".github/workflows/ci.yml")
+        assertTrue("Expected CI workflow at ${workflow.path}", workflow.isFile)
+
+        val workflowText = workflow.readText()
+        assertTrue(workflowText.contains("push:"))
+        assertTrue(workflowText.contains("branches: [main]"))
+        assertTrue(workflowText.contains("pull_request:"))
+        assertTrue(workflowText.contains("actions/checkout@v4"))
+        assertTrue(workflowText.contains("actions/setup-java@v4"))
+        assertTrue(workflowText.contains("gradle/actions/setup-gradle@v4"))
+        assertTrue(workflowText.contains("./gradlew check"))
+        assertFalse(workflowText.contains("publishAllPublications"))
+        assertFalse(workflowText.contains("MAVEN_CENTRAL_PASSWORD"))
+        assertFalse(workflowText.contains("SIGNING_KEY"))
+    }
+
+    @Test
     fun releaseWorkflowUploadsOssrhStagingRepositoryToCentralPortal() {
         val workflowText = File(".github/workflows/publish.yml").readText()
         val readme = File("README.md").readText()
