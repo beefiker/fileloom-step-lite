@@ -164,6 +164,7 @@ class StepLiteParser(
         val orientedEdges = linkedMapOf<Int, OrientedEdgeRecord>()
         val edgeLoops = linkedMapOf<Int, List<Int>>()
         var productName = ""
+        var fileName = ""
         var unit = StepLiteUnit.UNKNOWN
         var recordCount = 0
         var unsupported = 0
@@ -171,6 +172,9 @@ class StepLiteParser(
         StepRecordSequence(text).forEach { raw ->
             recordCount += 1
             if (recordCount > maxRecords) throw StepLiteTooLargeException()
+            if (fileName.isBlank()) {
+                fileName = raw.headerFileName().orEmpty()
+            }
             if (raw.contains("SI_UNIT", ignoreCase = true) || raw.contains("CONVERSION_BASED_UNIT", ignoreCase = true)) {
                 unit = maxOf(unit, raw.resolveUnit())
             }
@@ -592,7 +596,7 @@ class StepLiteParser(
 
         return StepLiteParseResult.Success(
             StepLiteDocument(
-                name = productName.ifBlank { "STEP model" },
+                name = productName.ifBlank { fileName }.ifBlank { "STEP model" },
                 unit = unit,
                 entities = entities,
                 unsupportedEntityCount = unsupported,
@@ -2493,6 +2497,14 @@ private class StepRecordSequence(
             index += 1
         }
     }
+}
+
+private fun String.headerFileName(): String? {
+    val trimmed = trim()
+    if (!trimmed.startsWith("FILE_NAME", ignoreCase = true)) return null
+    val open = trimmed.indexOf('(').takeIf { it >= 0 } ?: return null
+    val close = trimmed.lastIndexOf(')').takeIf { it > open } ?: return null
+    return trimmed.substring(open + 1, close).firstString()
 }
 
 private fun String.refs(): List<Int> {

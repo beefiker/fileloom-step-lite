@@ -48,6 +48,17 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun usesHeaderFileNameWhenProductNameIsAbsent() {
+        val result = StepLiteParser().parse(FileNameOnlyStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals("header-only-name.stp", document.name)
+        assertEquals(1, document.entities.size)
+    }
+
+    @Test
     fun prefersNamedConversionUnitsOverReferencedSiBaseUnits() {
         val result = StepLiteParser().parse(ConversionBasedInchStep.byteInputStream())
 
@@ -1456,6 +1467,27 @@ class StepLiteParserTest {
             #111=DIRECTION('',(0.,0.,1.));
             #112=DIRECTION('',(0.,0.,1.));
             #113=DIRECTION('',(0.,0.,1.));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val FileNameOnlyStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom filename only STEP fixture'),'2;1');
+            FILE_NAME('header-only-name.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(1.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#11);
+            #30=LINE('',#10,#90);
+            #40=EDGE_CURVE('',#20,#21,#30,.T.);
+            #90=VECTOR('',#91,1.);
+            #91=DIRECTION('',(1.,0.,0.));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
