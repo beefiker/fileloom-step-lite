@@ -112,6 +112,26 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesComplexPointAndVertexRecordsForEdgeEndpoints() {
+        val result = StepLiteParser().parse(ComplexPointVertexStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val line = document.entities.single()
+        assertTrue(line is StepLiteEntity.Line)
+        line as StepLiteEntity.Line
+        assertClose(0.0, line.start.x)
+        assertClose(0.0, line.start.y)
+        assertClose(0.0, line.start.z)
+        assertClose(10.0, line.end.x)
+        assertClose(0.0, line.end.y)
+        assertClose(5.0, line.end.z)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesPolylineEdgeCurvesWithoutFlatteningToSingleLine() {
         val result = StepLiteParser().parse(PolylineStep.byteInputStream())
 
@@ -565,6 +585,48 @@ class StepLiteParserTest {
             #21=VERTEX_POINT('end vertex #998',#11);
             #30=LINE('line #997',#10,#90);
             #50=EDGE_CURVE('edge #996',#20,#21,#30,.T.);
+            #90=VECTOR('',#91,1.);
+            #91=DIRECTION('',(1.,0.,0.));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val ComplexPointVertexStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom complex point vertex STEP fixture'),'2;1');
+            FILE_NAME('complex-point-vertex.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Complex Point Vertex Fixture','Complex Point Vertex Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=(
+                CARTESIAN_POINT('',(0.,0.,0.))
+                GEOMETRIC_REPRESENTATION_ITEM()
+                POINT()
+                REPRESENTATION_ITEM('')
+            );
+            #11=(
+                CARTESIAN_POINT('',(10.,0.,5.))
+                GEOMETRIC_REPRESENTATION_ITEM()
+                POINT()
+                REPRESENTATION_ITEM('')
+            );
+            #20=(
+                REPRESENTATION_ITEM('')
+                VERTEX()
+                VERTEX_POINT('',#10)
+            );
+            #21=(
+                REPRESENTATION_ITEM('')
+                VERTEX()
+                VERTEX_POINT('',#11)
+            );
+            #30=LINE('',#10,#90);
+            #40=EDGE_CURVE('',#20,#21,#30,.T.);
             #90=VECTOR('',#91,1.);
             #91=DIRECTION('',(1.,0.,0.));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));

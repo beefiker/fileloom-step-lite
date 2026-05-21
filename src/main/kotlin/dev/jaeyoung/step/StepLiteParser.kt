@@ -218,6 +218,12 @@ class StepLiteParser(
                 }
                 "COMPLEX" -> {
                     unit = maxOf(unit, record.args.resolveUnit())
+                    val point = record.args.entityArgs("CARTESIAN_POINT")
+                        ?.firstNumberTuple(minSize = 2)
+                        ?.toPoint()
+                    if (point != null) points[record.id] = point
+                    val vertexPoint = record.args.entityArgs("VERTEX_POINT")?.refs()?.firstOrNull()
+                    if (vertexPoint != null) vertexPoints[record.id] = vertexPoint
                     val spline = record.args.toComplexBSplineRecord()
                     if (spline != null) splines[record.id] = spline
                     if (record.args.entityArgs("LINE") != null) lineCurves += record.id
