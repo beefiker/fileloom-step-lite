@@ -744,6 +744,24 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesTwoDimensionalAxisPlacementsForStandaloneConics() {
+        val result = StepLiteParser().parse(TwoDimensionalPlacementConicStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val circle = document.entities.single()
+        assertTrue(circle is StepLiteEntity.Circle)
+        circle as StepLiteEntity.Circle
+        assertClose(12.0, circle.center.x)
+        assertClose(7.0, circle.center.y)
+        assertClose(0.0, circle.center.z)
+        assertClose(2.5, circle.radius)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun emitsStandaloneTrimmedCurvesWithoutEdgeRecords() {
         val result = StepLiteParser().parse(StandaloneTrimmedCurveStep.byteInputStream())
 
@@ -1908,6 +1926,27 @@ class StepLiteParserTest {
             #20=CIRCLE('',#14,3.);
             #21=ELLIPSE('',#15,6.,3.);
             #30=GEOMETRIC_CURVE_SET('',(#20,#21));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val TwoDimensionalPlacementConicStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom 2D placement conic STEP fixture'),'2;1');
+            FILE_NAME('2d-placement-conic.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('2D Placement Conic Fixture','2D Placement Conic Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(12.,7.));
+            #11=DIRECTION('',(0.,1.));
+            #20=AXIS2_PLACEMENT_2D('',#10,#11);
+            #30=CIRCLE('',#20,2.5);
+            #40=GEOMETRIC_CURVE_SET('',(#30));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

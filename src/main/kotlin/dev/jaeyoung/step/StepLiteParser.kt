@@ -200,6 +200,16 @@ class StepLiteParser(
                         )
                     }
                 }
+                "AXIS2_PLACEMENT_2D" -> {
+                    val refs = record.args.refs()
+                    if (refs.isNotEmpty()) {
+                        placements[record.id] = AxisPlacementRecord(
+                            locationPointId = refs[0],
+                            axisDirectionId = null,
+                            refDirectionId = refs.getOrNull(1)
+                        )
+                    }
+                }
                 "CIRCLE" -> {
                     val circle = record.args.toCircleRecord()
                     if (circle != null) circles[record.id] = circle
@@ -281,6 +291,14 @@ class StepLiteParser(
                             locationPointId = axisPlacementRefs[0],
                             axisDirectionId = axisPlacementRefs.getOrNull(1),
                             refDirectionId = axisPlacementRefs.getOrNull(2)
+                        )
+                    }
+                    val axis2dPlacementRefs = record.args.entityArgs("AXIS2_PLACEMENT_2D")?.refs()
+                    if (!axis2dPlacementRefs.isNullOrEmpty()) {
+                        placements[record.id] = AxisPlacementRecord(
+                            locationPointId = axis2dPlacementRefs[0],
+                            axisDirectionId = null,
+                            refDirectionId = axis2dPlacementRefs.getOrNull(1)
                         )
                     }
                     val point = record.args.entityArgs("CARTESIAN_POINT")
