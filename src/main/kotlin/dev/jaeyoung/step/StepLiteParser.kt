@@ -749,7 +749,14 @@ class StepLiteParser(
                     polylineCurves = polylineCurves
                 )
                 ?.toPathPoints()
+                ?.orientedBetween(start = start, end = end)
                 ?: return null
+            if (
+                segment.firstOrNull()?.samePositionAs(start) != true ||
+                segment.lastOrNull()?.samePositionAs(end) != true
+            ) {
+                return null
+            }
             if (merged.isEmpty()) {
                 merged += segment
             } else if (merged.last().samePositionAs(segment.first())) {
