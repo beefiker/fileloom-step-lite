@@ -938,6 +938,27 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun emitsStandaloneParameterTrimmedBSplinesWithoutFullCurveFallback() {
+        val result = StepLiteParser().parse(StandaloneParameterTrimmedBSplineStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val spline = document.entities.single()
+        assertTrue(spline is StepLiteEntity.Polyline)
+        spline as StepLiteEntity.Polyline
+        assertTrue(spline.points.size > 8)
+        assertClose(2.5, spline.points.first().x)
+        assertClose(3.75, spline.points.first().y)
+        assertClose(5.0, spline.points[spline.points.lastIndex / 2].x)
+        assertClose(5.0, spline.points[spline.points.lastIndex / 2].y)
+        assertClose(7.5, spline.points.last().x)
+        assertClose(3.75, spline.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun emitsStandaloneSurfaceCurveConicsWithoutEdgeRecords() {
         val result = StepLiteParser().parse(StandaloneSurfaceConicStep.byteInputStream())
 
@@ -2315,6 +2336,28 @@ class StepLiteParserTest {
             #30=TRIMMED_CURVE('',#20,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(2.)),.T.,.PARAMETER.);
             #31=TRIMMED_CURVE('',#21,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(1.)),.T.,.PARAMETER.);
             #40=GEOMETRIC_CURVE_SET('',(#30,#31));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StandaloneParameterTrimmedBSplineStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom standalone parameter trimmed B-spline STEP fixture'),'2;1');
+            FILE_NAME('standalone-parameter-trimmed-bspline.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Standalone Parameter Trimmed B-spline Fixture','Standalone Parameter Trimmed B-spline Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(5.,10.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=B_SPLINE_CURVE_WITH_KNOTS('',2,(#10,#11,#12),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);
+            #30=TRIMMED_CURVE('',#20,(PARAMETER_VALUE(0.25)),(PARAMETER_VALUE(0.75)),.T.,.PARAMETER.);
+            #40=GEOMETRIC_CURVE_SET('',(#30));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

@@ -1080,7 +1080,8 @@ class StepLiteParser(
                 circles = circles,
                 ellipses = ellipses,
                 parabolas = parabolas,
-                hyperbolas = hyperbolas
+                hyperbolas = hyperbolas,
+                splines = splines
             )?.let { applyOffset(it, directions) }
         }
 
@@ -1235,7 +1236,8 @@ class StepLiteParser(
                         circles = circles,
                         ellipses = ellipses,
                         parabolas = parabolas,
-                        hyperbolas = hyperbolas
+                        hyperbolas = hyperbolas,
+                        splines = splines
                     ),
                     directions = directions
                 )
@@ -1432,7 +1434,8 @@ class StepLiteParser(
         circles: Map<Int, CircleRecord>,
         ellipses: Map<Int, EllipseRecord>,
         parabolas: Map<Int, ParabolaRecord>,
-        hyperbolas: Map<Int, HyperbolaRecord>
+        hyperbolas: Map<Int, HyperbolaRecord>,
+        splines: Map<Int, BSplineRecord>
     ): List<StepLitePoint>? {
         return toParameterTrimmedEntity(
             sourceId = 0,
@@ -1445,7 +1448,8 @@ class StepLiteParser(
             circles = circles,
             ellipses = ellipses,
             parabolas = parabolas,
-            hyperbolas = hyperbolas
+            hyperbolas = hyperbolas,
+            splines = splines
         )?.toPathPoints()
     }
 
@@ -1460,19 +1464,20 @@ class StepLiteParser(
         circles: Map<Int, CircleRecord>,
         ellipses: Map<Int, EllipseRecord>,
         parabolas: Map<Int, ParabolaRecord>,
-        hyperbolas: Map<Int, HyperbolaRecord>
+        hyperbolas: Map<Int, HyperbolaRecord>,
+        splines: Map<Int, BSplineRecord>
     ): StepLiteEntity? {
-        val startAngle = if (sameSense) startParameter else endParameter
-        val endAngle = if (sameSense) endParameter else startParameter
+        val startValue = if (sameSense) startParameter else endParameter
+        val endValue = if (sameSense) endParameter else startParameter
 
         val circle = circles[this]
         val circlePlacement = circle?.let { placements[it.placementId] }
         val circleCenter = circlePlacement?.let { points[it.locationPointId] }
         if (circle != null && circlePlacement != null && circleCenter != null) {
             val basis = circlePlacement.toBasis(directions)
-            val start = circleCenter.pointOnPlacedConic(basis, circle.radius, circle.radius, startAngle)
-            val end = circleCenter.pointOnPlacedConic(basis, circle.radius, circle.radius, endAngle)
-            val closed = start.samePositionAs(end) && abs(endAngle - startAngle) > CoordinateTolerance
+            val start = circleCenter.pointOnPlacedConic(basis, circle.radius, circle.radius, startValue)
+            val end = circleCenter.pointOnPlacedConic(basis, circle.radius, circle.radius, endValue)
+            val closed = start.samePositionAs(end) && abs(endValue - startValue) > CoordinateTolerance
             if (basis.isFlatInPreviewPlane()) {
                 return if (closed) {
                     StepLiteEntity.Circle(
@@ -1507,15 +1512,15 @@ class StepLiteParser(
         val ellipseCenter = ellipsePlacement?.let { points[it.locationPointId] }
         if (ellipse != null && ellipsePlacement != null && ellipseCenter != null) {
             val basis = ellipsePlacement.toBasis(directions)
-            val start = ellipseCenter.pointOnPlacedConic(basis, ellipse.majorRadius, ellipse.minorRadius, startAngle)
-            val end = ellipseCenter.pointOnPlacedConic(basis, ellipse.majorRadius, ellipse.minorRadius, endAngle)
+            val start = ellipseCenter.pointOnPlacedConic(basis, ellipse.majorRadius, ellipse.minorRadius, startValue)
+            val end = ellipseCenter.pointOnPlacedConic(basis, ellipse.majorRadius, ellipse.minorRadius, endValue)
             return StepLiteEntity.Polyline(
                 points = ellipse.toPolylinePoints(
                     center = ellipseCenter,
                     basis = basis,
                     start = start,
                     end = end,
-                    closed = start.samePositionAs(end) && abs(endAngle - startAngle) > CoordinateTolerance
+                    closed = start.samePositionAs(end) && abs(endValue - startValue) > CoordinateTolerance
                 ),
                 sourceId = sourceId
             )
@@ -1530,8 +1535,8 @@ class StepLiteParser(
                 points = parabola.toPolylinePoints(
                     center = parabolaCenter,
                     basis = basis,
-                    start = parabolaCenter.pointOnParabola(basis, parabola.focalDistance, startAngle),
-                    end = parabolaCenter.pointOnParabola(basis, parabola.focalDistance, endAngle)
+                    start = parabolaCenter.pointOnParabola(basis, parabola.focalDistance, startValue),
+                    end = parabolaCenter.pointOnParabola(basis, parabola.focalDistance, endValue)
                 ),
                 sourceId = sourceId
             )
@@ -1550,17 +1555,28 @@ class StepLiteParser(
                         basis,
                         hyperbola.semiAxis,
                         hyperbola.semiImagAxis,
-                        startAngle
+                        startValue
                     ),
                     end = hyperbolaCenter.pointOnHyperbola(
                         basis,
                         hyperbola.semiAxis,
                         hyperbola.semiImagAxis,
-                        endAngle
+                        endValue
                     )
                 ),
                 sourceId = sourceId
             )
+        }
+
+        val spline = splines[this]
+        if (spline != null) {
+            return spline.toPolylinePoints(
+                points = points,
+                startParameter = startValue,
+                endParameter = endValue
+            )?.let { splinePoints ->
+                StepLiteEntity.Polyline(points = splinePoints, sourceId = sourceId)
+            }
         }
 
         return null
@@ -1794,16 +1810,23 @@ class StepLiteParser(
             ?: DefaultXAxis
     }
 
-    private fun BSplineRecord.toPolylinePoints(points: Map<Int, StepLitePoint>): List<StepLitePoint>? {
+    private fun BSplineRecord.toPolylinePoints(
+        points: Map<Int, StepLitePoint>,
+        startParameter: Double? = null,
+        endParameter: Double? = null
+    ): List<StepLitePoint>? {
         val controlPoints = controlPointIds.mapNotNull(points::get)
         if (controlPoints.size != controlPointIds.size || controlPoints.size <= degree || knots.size != controlPoints.size + degree + 1) {
             return null
         }
         if (weights != null && weights.size != controlPoints.size) return null
 
-        val start = knots[degree]
-        val end = knots[knots.size - degree - 1]
-        if (end <= start) return null
+        val domainStart = knots[degree]
+        val domainEnd = knots[knots.size - degree - 1]
+        if (domainEnd <= domainStart) return null
+        val start = (startParameter ?: domainStart).coerceIn(domainStart, domainEnd)
+        val end = (endParameter ?: domainEnd).coerceIn(domainStart, domainEnd)
+        if (abs(end - start) <= CoordinateTolerance) return null
 
         return List(SplineSegments + 1) { index ->
             val t = if (index == SplineSegments) end else start + (end - start) * index / SplineSegments
