@@ -1,6 +1,7 @@
 package dev.jaeyoung.step
 
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -47,5 +48,22 @@ class StepLitePublishingTest {
         assertTrue(readme.contains("SIGNING_PASSWORD"))
         assertTrue(readme.contains("publishAllPublicationsToCentralSnapshotsRepository"))
         assertTrue(readme.contains("publishAllPublicationsToCentralReleaseRepository"))
+    }
+
+    @Test
+    fun parserBuildStaysLightweightAndFreeOfHeavyCadPayloads() {
+        val buildFile = File("build.gradle.kts").readText()
+        val catalog = File("gradle/libs.versions.toml").readText()
+        val sourceText = File("src/main").walkTopDown()
+            .filter { it.isFile }
+            .joinToString(separator = "\n") { it.readText() }
+
+        assertFalse(buildFile.contains("com.android.library"))
+        assertFalse(buildFile.contains("implementation("))
+        assertFalse(buildFile.contains("api("))
+        assertFalse(catalog.contains("occt", ignoreCase = true))
+        assertFalse(sourceText.contains("OpenCascade", ignoreCase = true))
+        assertFalse(sourceText.contains("occt", ignoreCase = true))
+        assertFalse(sourceText.contains("wasm", ignoreCase = true))
     }
 }
