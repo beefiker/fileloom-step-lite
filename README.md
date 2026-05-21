@@ -99,3 +99,7 @@ Publishing references:
 - Central Portal Gradle guidance: https://central.sonatype.org/publish/publish-portal-gradle/
 - Central Portal OSSRH Staging API: https://central.sonatype.org/publish/publish-portal-ossrh-staging-api/
 - Central Portal snapshots: https://central.sonatype.org/publish/publish-portal-snapshots/
+
+## License
+
+Apache-2.0. See `LICENSE`.

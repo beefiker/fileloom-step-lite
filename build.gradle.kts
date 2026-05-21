@@ -28,6 +28,7 @@ java {
 
 tasks.named<Jar>("javadocJar") {
     from("README.md")
+    from("LICENSE")
 }
 
 kotlin {

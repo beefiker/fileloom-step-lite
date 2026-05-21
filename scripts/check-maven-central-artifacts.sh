@@ -34,9 +34,11 @@ require_file "${BASE}.jar"
 require_file "${BASE}-sources.jar"
 require_file "${BASE}-javadoc.jar"
 require_file "${POM}"
+require_file "LICENSE"
 
 require_zip_entry "${BASE}-sources.jar" "dev/jaeyoung/step/StepLiteParser.kt"
 require_zip_entry "${BASE}-javadoc.jar" "README.md"
+require_zip_entry "${BASE}-javadoc.jar" "LICENSE"
 
 require_pom_text "<groupId>dev.jaeyoung</groupId>"
 require_pom_text "<artifactId>fileloom-step-lite</artifactId>"
@@ -45,4 +47,3 @@ require_pom_text "<description>Lightweight dependency-free STEP/STP preview pars
 require_pom_text "<url>https://github.com/beefiker/fileloom-step-lite</url>"
 require_pom_text "<name>Apache-2.0</name>"
 require_pom_text "<developerConnection>scm:git:https://github.com/beefiker/fileloom-step-lite.git</developerConnection>"
-
