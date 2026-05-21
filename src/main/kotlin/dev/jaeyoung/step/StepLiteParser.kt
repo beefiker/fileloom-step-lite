@@ -218,6 +218,18 @@ class StepLiteParser(
                 }
                 "COMPLEX" -> {
                     unit = maxOf(unit, record.args.resolveUnit())
+                    val direction = record.args.entityArgs("DIRECTION")
+                        ?.firstNumberTuple(minSize = 2)
+                        ?.toDirection()
+                    if (direction != null) directions[record.id] = direction
+                    val axisPlacementRefs = record.args.entityArgs("AXIS2_PLACEMENT_3D")?.refs()
+                    if (!axisPlacementRefs.isNullOrEmpty()) {
+                        placements[record.id] = AxisPlacementRecord(
+                            locationPointId = axisPlacementRefs[0],
+                            axisDirectionId = axisPlacementRefs.getOrNull(1),
+                            refDirectionId = axisPlacementRefs.getOrNull(2)
+                        )
+                    }
                     val point = record.args.entityArgs("CARTESIAN_POINT")
                         ?.firstNumberTuple(minSize = 2)
                         ?.toPoint()
