@@ -68,6 +68,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsEntityBudgetsThatWouldReturnPartialPreview() {
+        val result = StepLiteParser(maxEntities = 1).parse(BoxStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.TOO_LARGE),
+            result
+        )
+    }
+
+    @Test
     fun parsesCircularEdgeCurvesIntoArcsAndClosedCircles() {
         val result = StepLiteParser().parse(CircularStep.byteInputStream())
 

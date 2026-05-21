@@ -391,6 +391,12 @@ class StepLiteParser(
                 maxEntities
             )
         )
+
+        fun addEntity(entity: StepLiteEntity) {
+            if (entities.size >= maxEntities) throw StepLiteTooLargeException()
+            entities += entity
+        }
+
         val referencedCurveIds = edges.values.asSequence()
             .map { it.curveId }
             .plus(curveWrappers.values.asSequence().map { it.basisCurveId })
@@ -398,7 +404,6 @@ class StepLiteParser(
             .toSet()
         val loopEdgeIds = linkedSetOf<Int>()
         for ((sourceId, orientedEdgeIds) in edgeLoops) {
-            if (entities.size >= maxEntities) break
             orientedEdgeIds.toEdgeLoopPolyline(
                 sourceId = sourceId,
                 points = points,
@@ -420,14 +425,13 @@ class StepLiteParser(
                 edges = edges,
                 orientedEdges = orientedEdges
             )?.let { loop ->
-                entities += loop
+                addEntity(loop)
                 loopEdgeIds += orientedEdgeIds.mapNotNull { edgeId ->
                     orientedEdges[edgeId]?.edgeId ?: edgeId.takeIf(edges::containsKey)
                 }
             }
         }
         for (edge in edges.values) {
-            if (entities.size >= maxEntities) break
             if (edge.sourceId in loopEdgeIds) continue
             val start = vertexPoints[edge.startVertexId]?.let(points::get)
             val end = vertexPoints[edge.endVertexId]?.let(points::get)
@@ -452,7 +456,7 @@ class StepLiteParser(
                     polylineCurves = polylineCurves
                 )
                 if (entity != null) {
-                    entities += entity
+                    addEntity(entity)
                 } else {
                     unsupported += 1
                 }
@@ -461,37 +465,33 @@ class StepLiteParser(
             }
         }
         for ((sourceId, line) in lineRecords) {
-            if (entities.size >= maxEntities) break
             if (sourceId in referencedCurveIds) continue
             line.toStandaloneEntity(
                 sourceId = sourceId,
                 points = points,
                 directions = directions,
                 vectors = vectors
-            )?.let(entities::add)
+            )?.let { addEntity(it) }
         }
         for ((sourceId, circle) in circles) {
-            if (entities.size >= maxEntities) break
             if (sourceId in referencedCurveIds) continue
             circle.toStandaloneEntity(
                 sourceId = sourceId,
                 points = points,
                 directions = directions,
                 placements = placements
-            )?.let(entities::add)
+            )?.let { addEntity(it) }
         }
         for ((sourceId, ellipse) in ellipses) {
-            if (entities.size >= maxEntities) break
             if (sourceId in referencedCurveIds) continue
             ellipse.toStandalonePolyline(
                 sourceId = sourceId,
                 points = points,
                 directions = directions,
                 placements = placements
-            )?.let(entities::add)
+            )?.let { addEntity(it) }
         }
         for ((sourceId, wrapper) in curveWrappers) {
-            if (entities.size >= maxEntities) break
             if (sourceId in referencedCurveIds) continue
             wrapper.toStandaloneEntity(
                 sourceId = sourceId,
@@ -510,30 +510,31 @@ class StepLiteParser(
                 lineCurves = lineCurves,
                 lineRecords = lineRecords,
                 polylineCurves = polylineCurves
-            )?.let(entities::add)
+            )?.let { addEntity(it) }
         }
         for ((sourceId, pointIds) in polylineCurves) {
-            if (entities.size >= maxEntities) break
             if (sourceId in referencedCurveIds) continue
             pointIds.toPolylinePoints(points)?.let { polylinePoints ->
-                entities += StepLiteEntity.Polyline(
-                    points = polylinePoints,
-                    sourceId = sourceId
+                addEntity(
+                    StepLiteEntity.Polyline(
+                        points = polylinePoints,
+                        sourceId = sourceId
+                    )
                 )
             }
         }
         for ((sourceId, spline) in splines) {
-            if (entities.size >= maxEntities) break
             if (sourceId in referencedCurveIds) continue
             spline.toPolylinePoints(points)?.let { splinePoints ->
-                entities += StepLiteEntity.Polyline(
-                    points = splinePoints,
-                    sourceId = sourceId
+                addEntity(
+                    StepLiteEntity.Polyline(
+                        points = splinePoints,
+                        sourceId = sourceId
+                    )
                 )
             }
         }
         for ((sourceId, segmentIds) in compositeCurves) {
-            if (entities.size >= maxEntities) break
             if (sourceId in referencedCurveIds) continue
             segmentIds.toCompositeCurvePoints(
                 points = points,
@@ -551,18 +552,21 @@ class StepLiteParser(
                 lineRecords = lineRecords,
                 polylineCurves = polylineCurves
             )?.let { compositePoints ->
-                entities += StepLiteEntity.Polyline(
-                    points = compositePoints,
-                    sourceId = sourceId
+                addEntity(
+                    StepLiteEntity.Polyline(
+                        points = compositePoints,
+                        sourceId = sourceId
+                    )
                 )
             }
         }
         for ((sourceId, pointIds) in polyLoops) {
-            if (entities.size >= maxEntities) break
             pointIds.toClosedPolylinePoints(points)?.let { loopPoints ->
-                entities += StepLiteEntity.Polyline(
-                    points = loopPoints,
-                    sourceId = sourceId
+                addEntity(
+                    StepLiteEntity.Polyline(
+                        points = loopPoints,
+                        sourceId = sourceId
+                    )
                 )
             }
         }
