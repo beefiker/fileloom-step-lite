@@ -227,6 +227,12 @@ class StepLiteParser(
                     if (circle != null) circles[record.id] = circle
                     val ellipse = record.args.entityArgs("ELLIPSE")?.toEllipseRecord()
                     if (ellipse != null) ellipses[record.id] = ellipse
+                    val trimmedCurve = record.args.entityArgs("TRIMMED_CURVE")?.toTrimmedCurveRecord()
+                    if (trimmedCurve != null) curveWrappers[record.id] = trimmedCurve
+                    val surfaceCurve = record.args.entityArgs("SURFACE_CURVE")?.toBasisCurveWrapperRecord()
+                    if (surfaceCurve != null) curveWrappers[record.id] = surfaceCurve
+                    val seamCurve = record.args.entityArgs("SEAM_CURVE")?.toBasisCurveWrapperRecord()
+                    if (seamCurve != null) curveWrappers[record.id] = seamCurve
                 }
                 "EDGE_CURVE" -> {
                     val refs = record.args.refs()

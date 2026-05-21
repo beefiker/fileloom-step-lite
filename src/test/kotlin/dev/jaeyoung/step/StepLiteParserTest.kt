@@ -380,6 +380,38 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun resolvesComplexCurveWrappersBeforeParsingEdgeCurves() {
+        val result = StepLiteParser().parse(ComplexCurveWrapperStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(3, document.entities.size)
+        val trimmedArc = document.entities[0]
+        assertTrue(trimmedArc is StepLiteEntity.Arc)
+        trimmedArc as StepLiteEntity.Arc
+        assertClose(0.0, trimmedArc.startAngleRadians)
+        assertClose(PI / 2.0, trimmedArc.endAngleRadians)
+
+        val surfaceCurve = document.entities[1]
+        assertTrue(surfaceCurve is StepLiteEntity.Polyline)
+        surfaceCurve as StepLiteEntity.Polyline
+        assertClose(0.0, surfaceCurve.points.first().x)
+        assertClose(0.0, surfaceCurve.points.first().y)
+        assertClose(10.0, surfaceCurve.points.last().x)
+        assertClose(0.0, surfaceCurve.points.last().y)
+
+        val seamCurve = document.entities[2]
+        assertTrue(seamCurve is StepLiteEntity.Polyline)
+        seamCurve as StepLiteEntity.Polyline
+        assertClose(0.0, seamCurve.points.first().x)
+        assertClose(0.0, seamCurve.points.first().y)
+        assertClose(10.0, seamCurve.points.last().x)
+        assertClose(0.0, seamCurve.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesComplexRationalBSplineRecordsAsLightweightPolylines() {
         val result = StepLiteParser().parse(ComplexRationalBSplineStep.byteInputStream())
 
@@ -887,6 +919,68 @@ class StepLiteParserTest {
             #93=PLANE('',#95);
             #94=DEFINITIONAL_REPRESENTATION('',(),#96);
             #95=AXIS2_PLACEMENT_3D('',#10,#97,#98);
+            #96=REPRESENTATION_CONTEXT('','');
+            #97=DIRECTION('',(0.,0.,1.));
+            #98=DIRECTION('',(1.,0.,0.));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val ComplexCurveWrapperStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom complex curve wrapper STEP fixture'),'2;1');
+            FILE_NAME('complex-curve-wrapper.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Complex Curve Wrapper Fixture','Complex Curve Wrapper Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(5.,5.,0.));
+            #11=DIRECTION('',(0.,0.,1.));
+            #12=DIRECTION('',(1.,0.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #14=CIRCLE('',#13,2.5);
+            #20=CARTESIAN_POINT('',(7.5,5.,0.));
+            #21=CARTESIAN_POINT('',(5.,7.5,0.));
+            #22=VERTEX_POINT('',#20);
+            #23=VERTEX_POINT('',#21);
+            #30=(
+                BOUNDED_CURVE()
+                CURVE()
+                GEOMETRIC_REPRESENTATION_ITEM()
+                TRIMMED_CURVE('',#14,(#20),(#21),.T.,.CARTESIAN.)
+                REPRESENTATION_ITEM('')
+            );
+            #40=EDGE_CURVE('',#22,#23,#30,.T.);
+            #50=CARTESIAN_POINT('',(0.,0.,0.));
+            #51=CARTESIAN_POINT('',(5.,10.,0.));
+            #52=CARTESIAN_POINT('',(10.,0.,0.));
+            #60=VERTEX_POINT('',#50);
+            #61=VERTEX_POINT('',#52);
+            #70=B_SPLINE_CURVE_WITH_KNOTS('',2,(#50,#51,#52),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);
+            #71=(
+                CURVE()
+                GEOMETRIC_REPRESENTATION_ITEM()
+                SURFACE_CURVE('',#70,(#90),.CURVE_3D.)
+                REPRESENTATION_ITEM('')
+            );
+            #72=(
+                CURVE()
+                GEOMETRIC_REPRESENTATION_ITEM()
+                SEAM_CURVE('',#70,(#91,#92),.PCURVE_S1.)
+                REPRESENTATION_ITEM('')
+            );
+            #80=EDGE_CURVE('',#60,#61,#71,.T.);
+            #81=EDGE_CURVE('',#60,#61,#72,.T.);
+            #90=PCURVE('',#93,#94);
+            #91=PCURVE('',#93,#94);
+            #92=PCURVE('',#93,#94);
+            #93=PLANE('',#95);
+            #94=DEFINITIONAL_REPRESENTATION('',(),#96);
+            #95=AXIS2_PLACEMENT_3D('',#50,#97,#98);
             #96=REPRESENTATION_CONTEXT('','');
             #97=DIRECTION('',(0.,0.,1.));
             #98=DIRECTION('',(1.,0.,0.));
