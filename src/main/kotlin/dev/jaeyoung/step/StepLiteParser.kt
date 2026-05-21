@@ -1053,7 +1053,9 @@ class StepLiteParser(
                 directions = directions,
                 placements = placements,
                 circles = circles,
-                ellipses = ellipses
+                ellipses = ellipses,
+                parabolas = parabolas,
+                hyperbolas = hyperbolas
             )?.let { applyOffset(it, directions) }
         }
 
@@ -1206,7 +1208,9 @@ class StepLiteParser(
                         directions = directions,
                         placements = placements,
                         circles = circles,
-                        ellipses = ellipses
+                        ellipses = ellipses,
+                        parabolas = parabolas,
+                        hyperbolas = hyperbolas
                     ),
                     directions = directions
                 )
@@ -1401,7 +1405,9 @@ class StepLiteParser(
         directions: Map<Int, DirectionRecord>,
         placements: Map<Int, AxisPlacementRecord>,
         circles: Map<Int, CircleRecord>,
-        ellipses: Map<Int, EllipseRecord>
+        ellipses: Map<Int, EllipseRecord>,
+        parabolas: Map<Int, ParabolaRecord>,
+        hyperbolas: Map<Int, HyperbolaRecord>
     ): List<StepLitePoint>? {
         return toParameterTrimmedEntity(
             sourceId = 0,
@@ -1412,7 +1418,9 @@ class StepLiteParser(
             directions = directions,
             placements = placements,
             circles = circles,
-            ellipses = ellipses
+            ellipses = ellipses,
+            parabolas = parabolas,
+            hyperbolas = hyperbolas
         )?.toPathPoints()
     }
 
@@ -1425,7 +1433,9 @@ class StepLiteParser(
         directions: Map<Int, DirectionRecord>,
         placements: Map<Int, AxisPlacementRecord>,
         circles: Map<Int, CircleRecord>,
-        ellipses: Map<Int, EllipseRecord>
+        ellipses: Map<Int, EllipseRecord>,
+        parabolas: Map<Int, ParabolaRecord>,
+        hyperbolas: Map<Int, HyperbolaRecord>
     ): StepLiteEntity? {
         val startAngle = if (sameSense) startParameter else endParameter
         val endAngle = if (sameSense) endParameter else startParameter
@@ -1481,6 +1491,48 @@ class StepLiteParser(
                     start = start,
                     end = end,
                     closed = start.samePositionAs(end) && abs(endAngle - startAngle) > CoordinateTolerance
+                ),
+                sourceId = sourceId
+            )
+        }
+
+        val parabola = parabolas[this]
+        val parabolaPlacement = parabola?.let { placements[it.placementId] }
+        val parabolaCenter = parabolaPlacement?.let { points[it.locationPointId] }
+        if (parabola != null && parabolaPlacement != null && parabolaCenter != null) {
+            val basis = parabolaPlacement.toBasis(directions)
+            return StepLiteEntity.Polyline(
+                points = parabola.toPolylinePoints(
+                    center = parabolaCenter,
+                    basis = basis,
+                    start = parabolaCenter.pointOnParabola(basis, parabola.focalDistance, startAngle),
+                    end = parabolaCenter.pointOnParabola(basis, parabola.focalDistance, endAngle)
+                ),
+                sourceId = sourceId
+            )
+        }
+
+        val hyperbola = hyperbolas[this]
+        val hyperbolaPlacement = hyperbola?.let { placements[it.placementId] }
+        val hyperbolaCenter = hyperbolaPlacement?.let { points[it.locationPointId] }
+        if (hyperbola != null && hyperbolaPlacement != null && hyperbolaCenter != null) {
+            val basis = hyperbolaPlacement.toBasis(directions)
+            return StepLiteEntity.Polyline(
+                points = hyperbola.toPolylinePoints(
+                    center = hyperbolaCenter,
+                    basis = basis,
+                    start = hyperbolaCenter.pointOnHyperbola(
+                        basis,
+                        hyperbola.semiAxis,
+                        hyperbola.semiImagAxis,
+                        startAngle
+                    ),
+                    end = hyperbolaCenter.pointOnHyperbola(
+                        basis,
+                        hyperbola.semiAxis,
+                        hyperbola.semiImagAxis,
+                        endAngle
+                    )
                 ),
                 sourceId = sourceId
             )
@@ -1618,6 +1670,27 @@ class StepLiteParser(
         }
     }
 
+    private fun StepLitePoint.pointOnParabola(
+        basis: PlacementBasis,
+        focalDistance: Double,
+        parameter: Double
+    ): StepLitePoint {
+        val majorOffset = focalDistance * parameter * parameter
+        val minorOffset = 2.0 * focalDistance * parameter
+        return offsetInBasis(basis, majorOffset, minorOffset)
+    }
+
+    private fun StepLitePoint.pointOnHyperbola(
+        basis: PlacementBasis,
+        semiAxis: Double,
+        semiImagAxis: Double,
+        parameter: Double
+    ): StepLitePoint {
+        val majorOffset = semiAxis * hyperbolicCosine(parameter)
+        val minorOffset = semiImagAxis * hyperbolicSine(parameter)
+        return offsetInBasis(basis, majorOffset, minorOffset)
+    }
+
     private fun samplePlacedConic(
         center: StepLitePoint,
         basis: PlacementBasis,
@@ -1662,6 +1735,14 @@ class StepLiteParser(
     ): StepLitePoint {
         val majorOffset = majorRadius * cos(angle)
         val minorOffset = minorRadius * sin(angle)
+        return offsetInBasis(basis, majorOffset, minorOffset)
+    }
+
+    private fun StepLitePoint.offsetInBasis(
+        basis: PlacementBasis,
+        majorOffset: Double,
+        minorOffset: Double
+    ): StepLitePoint {
         return StepLitePoint(
             x = x + basis.xAxis.x * majorOffset + basis.yAxis.x * minorOffset,
             y = y + basis.xAxis.y * majorOffset + basis.yAxis.y * minorOffset,

@@ -833,6 +833,38 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun emitsStandaloneParameterTrimmedOpenConicsWithoutEdgeRecords() {
+        val result = StepLiteParser().parse(StandaloneParameterTrimmedOpenConicStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(2, document.entities.size)
+        val parabola = document.entities[0]
+        assertTrue(parabola is StepLiteEntity.Polyline)
+        parabola as StepLiteEntity.Polyline
+        assertTrue(parabola.points.size > 8)
+        assertClose(0.0, parabola.points.first().x)
+        assertClose(0.0, parabola.points.first().y)
+        assertClose(2.0, parabola.points[parabola.points.lastIndex / 2].x)
+        assertClose(4.0, parabola.points[parabola.points.lastIndex / 2].y)
+        assertClose(8.0, parabola.points.last().x)
+        assertClose(8.0, parabola.points.last().y)
+
+        val hyperbola = document.entities[1]
+        assertTrue(hyperbola is StepLiteEntity.Polyline)
+        hyperbola as StepLiteEntity.Polyline
+        assertTrue(hyperbola.points.size > 8)
+        assertClose(2.0, hyperbola.points.first().x)
+        assertClose(0.0, hyperbola.points.first().y)
+        assertClose(2.2552519304127614, hyperbola.points[hyperbola.points.lastIndex / 2].x)
+        assertClose(0.5210953054937474, hyperbola.points[hyperbola.points.lastIndex / 2].y)
+        assertClose(3.0861612696304874, hyperbola.points.last().x)
+        assertClose(1.1752011936438014, hyperbola.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun emitsStandaloneSurfaceCurveConicsWithoutEdgeRecords() {
         val result = StepLiteParser().parse(StandaloneSurfaceConicStep.byteInputStream())
 
@@ -2070,6 +2102,31 @@ class StepLiteParserTest {
             #21=ELLIPSE('',#15,6.,3.);
             #30=TRIMMED_CURVE('',#20,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(1.5707963267948966)),.T.,.PARAMETER.);
             #31=TRIMMED_CURVE('',#21,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(1.5707963267948966)),.T.,.PARAMETER.);
+            #40=GEOMETRIC_CURVE_SET('',(#30,#31));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StandaloneParameterTrimmedOpenConicStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom standalone parameter trimmed open conic STEP fixture'),'2;1');
+            FILE_NAME('standalone-parameter-trimmed-open-conic.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Standalone Parameter Trimmed Open Conic Fixture','Standalone Parameter Trimmed Open Conic Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=DIRECTION('',(0.,0.,1.));
+            #12=DIRECTION('',(1.,0.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #20=PARABOLA('',#13,2.);
+            #21=HYPERBOLA('',#13,2.,1.);
+            #30=TRIMMED_CURVE('',#20,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(2.)),.T.,.PARAMETER.);
+            #31=TRIMMED_CURVE('',#21,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(1.)),.T.,.PARAMETER.);
             #40=GEOMETRIC_CURVE_SET('',(#30,#31));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
