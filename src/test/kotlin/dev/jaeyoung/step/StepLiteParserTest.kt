@@ -48,6 +48,17 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun prefersNamedConversionUnitsOverReferencedSiBaseUnits() {
+        val result = StepLiteParser().parse(ConversionBasedInchStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(StepLiteUnit.INCH, document.unit)
+        assertEquals(1, document.entities.size)
+    }
+
+    @Test
     fun rejectsNonStepInput() {
         val result = StepLiteParser().parse("not a step file".byteInputStream())
 
@@ -1427,6 +1438,32 @@ class StepLiteParserTest {
             #112=DIRECTION('',(0.,0.,1.));
             #113=DIRECTION('',(0.,0.,1.));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val ConversionBasedInchStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom conversion based inch STEP fixture'),'2;1');
+            FILE_NAME('conversion-inch.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Conversion Inch Fixture','Conversion Inch Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(1.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#11);
+            #30=LINE('',#10,#90);
+            #40=EDGE_CURVE('',#20,#21,#30,.T.);
+            #90=VECTOR('',#91,1.);
+            #91=DIRECTION('',(1.,0.,0.));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            #201=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#200);
+            #202=CONVERSION_BASED_UNIT('INCH',#201);
             ENDSEC;
             END-ISO-10303-21;
         """.trimIndent()

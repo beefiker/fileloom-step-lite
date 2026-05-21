@@ -3045,19 +3045,28 @@ private fun String.toStepDoubleOrNull(): Double? {
 private fun String.resolveUnit(): StepLiteUnit {
     val normalized = uppercase()
     return when {
+        "'INCH'" in normalized || "'INCHES'" in normalized -> StepLiteUnit.INCH
+        "'FOOT'" in normalized || "'FEET'" in normalized -> StepLiteUnit.FOOT
         ".MILLI." in normalized && ".METRE." in normalized -> StepLiteUnit.MILLIMETER
         ".CENTI." in normalized && ".METRE." in normalized -> StepLiteUnit.CENTIMETER
         ".METRE." in normalized -> StepLiteUnit.METER
         "'MILLIMETRE'" in normalized || "'MILLIMETER'" in normalized -> StepLiteUnit.MILLIMETER
         "'CENTIMETRE'" in normalized || "'CENTIMETER'" in normalized -> StepLiteUnit.CENTIMETER
-        "'INCH'" in normalized -> StepLiteUnit.INCH
-        "'FOOT'" in normalized || "'FEET'" in normalized -> StepLiteUnit.FOOT
         else -> StepLiteUnit.UNKNOWN
     }
 }
 
 private fun maxOf(current: StepLiteUnit, candidate: StepLiteUnit): StepLiteUnit {
-    return if (current == StepLiteUnit.UNKNOWN) candidate else current
+    return when {
+        current == StepLiteUnit.UNKNOWN -> candidate
+        candidate == StepLiteUnit.UNKNOWN -> current
+        candidate.isNamedConversionUnit() && !current.isNamedConversionUnit() -> candidate
+        else -> current
+    }
+}
+
+private fun StepLiteUnit.isNamedConversionUnit(): Boolean {
+    return this == StepLiteUnit.INCH || this == StepLiteUnit.FOOT
 }
 
 private const val CoordinateTolerance = 1.0e-9
