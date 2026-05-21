@@ -87,4 +87,4 @@ jobs:
           curl --fail-with-body \
             --request POST \
             --header "Authorization: Bearer ${CENTRAL_AUTH}" \
-            "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/${MAVEN_CENTRAL_NAMESPACE}"
+            "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/${MAVEN_CENTRAL_NAMESPACE}?publishing_type=automatic"

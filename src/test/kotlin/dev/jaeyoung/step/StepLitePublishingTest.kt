@@ -132,11 +132,12 @@ class StepLitePublishingTest {
         val readme = File("README.md").readText()
 
         assertTrue(workflowText.contains("MAVEN_CENTRAL_NAMESPACE: dev.jaeyoung"))
-        assertTrue(workflowText.contains("/manual/upload/defaultRepository/${'$'}{MAVEN_CENTRAL_NAMESPACE}"))
+        assertTrue(workflowText.contains("/manual/upload/defaultRepository/${'$'}{MAVEN_CENTRAL_NAMESPACE}?publishing_type=automatic"))
         assertTrue(workflowText.contains("Authorization: Bearer"))
         assertTrue(workflowText.contains("curl --fail-with-body"))
         assertTrue(readme.contains("MAVEN_CENTRAL_NAMESPACE=\"dev.jaeyoung\""))
         assertTrue(readme.contains("Manual release versions must be artifact versions such as `0.1.0`"))
-        assertTrue(readme.contains("manual/upload/defaultRepository/${'$'}MAVEN_CENTRAL_NAMESPACE"))
+        assertTrue(readme.contains("manual/upload/defaultRepository/${'$'}MAVEN_CENTRAL_NAMESPACE?publishing_type=automatic"))
+        assertTrue(readme.contains("attempt to automatically release it to Maven Central"))
     }
 }
