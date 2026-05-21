@@ -190,25 +190,12 @@ class StepLiteParser(
                     }
                 }
                 "CIRCLE" -> {
-                    val placementId = record.args.refs().firstOrNull()
-                    val radius = record.args.topLevelNumbers().lastOrNull()
-                    if (placementId != null && radius != null && radius > 0.0) {
-                        circles[record.id] = CircleRecord(
-                            placementId = placementId,
-                            radius = radius
-                        )
-                    }
+                    val circle = record.args.toCircleRecord()
+                    if (circle != null) circles[record.id] = circle
                 }
                 "ELLIPSE" -> {
-                    val placementId = record.args.refs().firstOrNull()
-                    val radii = record.args.topLevelNumbers().takeLast(2)
-                    if (placementId != null && radii.size == 2 && radii[0] > 0.0 && radii[1] > 0.0) {
-                        ellipses[record.id] = EllipseRecord(
-                            placementId = placementId,
-                            majorRadius = radii[0],
-                            minorRadius = radii[1]
-                        )
-                    }
+                    val ellipse = record.args.toEllipseRecord()
+                    if (ellipse != null) ellipses[record.id] = ellipse
                 }
                 "LINE" -> {
                     lineCurves += record.id
@@ -235,6 +222,10 @@ class StepLiteParser(
                     unit = maxOf(unit, record.args.resolveUnit())
                     val spline = record.args.toComplexBSplineRecord()
                     if (spline != null) splines[record.id] = spline
+                    val circle = record.args.entityArgs("CIRCLE")?.toCircleRecord()
+                    if (circle != null) circles[record.id] = circle
+                    val ellipse = record.args.entityArgs("ELLIPSE")?.toEllipseRecord()
+                    if (ellipse != null) ellipses[record.id] = ellipse
                 }
                 "EDGE_CURVE" -> {
                     val refs = record.args.refs()
@@ -694,6 +685,27 @@ class StepLiteParser(
             controlPointIds = controlPointIds,
             numberTuples = knotArgs.topLevelNumberTuples(),
             weights = weights
+        )
+    }
+
+    private fun String.toCircleRecord(): CircleRecord? {
+        val placementId = refs().firstOrNull() ?: return null
+        val radius = topLevelNumbers().lastOrNull() ?: return null
+        if (radius <= 0.0) return null
+        return CircleRecord(
+            placementId = placementId,
+            radius = radius
+        )
+    }
+
+    private fun String.toEllipseRecord(): EllipseRecord? {
+        val placementId = refs().firstOrNull() ?: return null
+        val radii = topLevelNumbers().takeLast(2)
+        if (radii.size != 2 || radii[0] <= 0.0 || radii[1] <= 0.0) return null
+        return EllipseRecord(
+            placementId = placementId,
+            majorRadius = radii[0],
+            minorRadius = radii[1]
         )
     }
 

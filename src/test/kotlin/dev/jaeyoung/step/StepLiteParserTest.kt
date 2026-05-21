@@ -205,6 +205,34 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesComplexConicRecordsAsLightweightCurves() {
+        val result = StepLiteParser().parse(ComplexConicStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(2, document.entities.size)
+        val arc = document.entities[0]
+        assertTrue(arc is StepLiteEntity.Arc)
+        arc as StepLiteEntity.Arc
+        assertClose(5.0, arc.center.x)
+        assertClose(5.0, arc.center.y)
+        assertClose(2.5, arc.radius)
+        assertClose(0.0, arc.startAngleRadians)
+        assertClose(PI / 2.0, arc.endAngleRadians)
+
+        val ellipse = document.entities[1]
+        assertTrue(ellipse is StepLiteEntity.Polyline)
+        ellipse as StepLiteEntity.Polyline
+        assertTrue(ellipse.points.size > 2)
+        assertClose(26.0, ellipse.points.first().x)
+        assertClose(20.0, ellipse.points.first().y)
+        assertClose(20.0, ellipse.points.last().x)
+        assertClose(23.0, ellipse.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesBSplineEdgeCurvesAsLightweightPolylines() {
         val result = StepLiteParser().parse(BSplineStep.byteInputStream())
 
@@ -607,6 +635,54 @@ class StepLiteParserTest {
             #23=VERTEX_POINT('',#21);
             #24=EDGE_CURVE('',#22,#22,#14,.T.);
             #25=EDGE_CURVE('',#22,#23,#14,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val ComplexConicStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom complex conic STEP fixture'),'2;1');
+            FILE_NAME('complex-conic.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Complex Conic Fixture','Complex Conic Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(5.,5.,0.));
+            #11=DIRECTION('',(0.,0.,1.));
+            #12=DIRECTION('',(1.,0.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #14=(
+                BOUNDED_CURVE()
+                CIRCLE('',#13,2.5)
+                CONIC()
+                CURVE()
+                GEOMETRIC_REPRESENTATION_ITEM()
+                REPRESENTATION_ITEM('')
+            );
+            #20=CARTESIAN_POINT('',(7.5,5.,0.));
+            #21=CARTESIAN_POINT('',(5.,7.5,0.));
+            #22=VERTEX_POINT('',#20);
+            #23=VERTEX_POINT('',#21);
+            #24=EDGE_CURVE('',#22,#23,#14,.T.);
+            #30=CARTESIAN_POINT('',(20.,20.,0.));
+            #31=AXIS2_PLACEMENT_3D('',#30,#11,#12);
+            #32=(
+                BOUNDED_CURVE()
+                ELLIPSE('',#31,6.,3.)
+                CONIC()
+                CURVE()
+                GEOMETRIC_REPRESENTATION_ITEM()
+                REPRESENTATION_ITEM('')
+            );
+            #40=CARTESIAN_POINT('',(26.,20.,0.));
+            #41=CARTESIAN_POINT('',(20.,23.,0.));
+            #42=VERTEX_POINT('',#40);
+            #43=VERTEX_POINT('',#41);
+            #44=EDGE_CURVE('',#42,#43,#32,.T.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
