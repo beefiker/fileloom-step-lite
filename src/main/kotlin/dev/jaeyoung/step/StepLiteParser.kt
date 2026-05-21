@@ -2564,10 +2564,8 @@ private fun String.firstNumberTuple(minSize: Int): List<Double>? {
             }
             ')' -> {
                 if (depth == 1 && tupleStart >= 0) {
-                    val values = substring(tupleStart, index)
-                        .split(',')
-                        .mapNotNull { it.trim().toStepDoubleOrNull() }
-                    if (values.size >= minSize) return values
+                    val values = substring(tupleStart, index).toNumberTupleOrNull()
+                    if (values != null && values.size >= minSize) return values
                 }
                 depth -= 1
             }
@@ -2630,12 +2628,7 @@ private fun String.topLevelNumberTuples(): List<List<Double>> {
             }
             ')' -> {
                 if (depth == 1 && tupleStart >= 0) {
-                    val values = substring(tupleStart, index)
-                        .split(',')
-                        .map { it.trim() }
-                        .takeIf { tokens -> tokens.all { token -> token.toStepDoubleOrNull() != null } }
-                        ?.mapNotNull { it.toStepDoubleOrNull() }
-                    if (!values.isNullOrEmpty()) tuples += values
+                    substring(tupleStart, index).toNumberTupleOrNull()?.let(tuples::add)
                 }
                 depth -= 1
             }
@@ -2684,18 +2677,22 @@ private fun String.deepNumberTuples(): List<List<Double>> {
             ')' -> {
                 val tupleStart = tupleStarts.removeLastOrNull()
                 if (tupleStart != null) {
-                    val values = substring(tupleStart, index)
-                        .split(',')
-                        .map { it.trim() }
-                        .takeIf { tokens -> tokens.all { token -> token.toStepDoubleOrNull() != null } }
-                        ?.mapNotNull { it.toStepDoubleOrNull() }
-                    if (!values.isNullOrEmpty()) tuples += values
+                    substring(tupleStart, index).toNumberTupleOrNull()?.let(tuples::add)
                 }
             }
         }
         index += 1
     }
     return tuples
+}
+
+private fun String.toNumberTupleOrNull(): List<Double>? {
+    val tokens = split(',')
+    val values = ArrayList<Double>(tokens.size)
+    for (token in tokens) {
+        values += token.trim().toStepDoubleOrNull() ?: return null
+    }
+    return values.takeIf { it.isNotEmpty() }
 }
 
 private fun String.entityArgs(entityName: String): String? {

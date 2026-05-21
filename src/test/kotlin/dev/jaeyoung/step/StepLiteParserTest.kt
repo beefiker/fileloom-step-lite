@@ -100,6 +100,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsUnknownCoordinateTuplesInsteadOfDroppingValues() {
+        val result = StepLiteParser().parse(UnknownCoordinateStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun parsesCircularEdgeCurvesIntoArcsAndClosedCircles() {
         val result = StepLiteParser().parse(CircularStep.byteInputStream())
 
@@ -1525,6 +1535,30 @@ class StepLiteParserTest {
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             #201=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#200);
             #202=CONVERSION_BASED_UNIT('INCH',#201);
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val UnknownCoordinateStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom unknown coordinate STEP fixture'),'2;1');
+            FILE_NAME('unknown-coordinate.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Unknown Coordinate Fixture','Unknown Coordinate Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,$,0.));
+            #11=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#11);
+            #30=LINE('',#10,#40);
+            #40=VECTOR('',#41,1.);
+            #41=DIRECTION('',(1.,0.,0.));
+            #50=EDGE_CURVE('',#20,#21,#30,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
         """.trimIndent()
