@@ -8,10 +8,11 @@ This parser is intentionally not an OpenCascade binding and does not bundle WASM
 
 - Reads ISO-10303-21 STEP/STP text files from an `InputStream`
 - Detects bounded input size before building in-memory model structures
-- Extracts `PRODUCT` name, unit hints, `CARTESIAN_POINT`, `VERTEX_POINT`, `AXIS2_PLACEMENT_3D`, `LINE`, `POLYLINE`, `CIRCLE`, `ELLIPSE`, `B_SPLINE_CURVE_WITH_KNOTS`, and `EDGE_CURVE`
+- Extracts `PRODUCT` name, unit hints, `CARTESIAN_POINT`, `VERTEX_POINT`, `AXIS2_PLACEMENT_3D`, `LINE`, `POLYLINE`, `CIRCLE`, `ELLIPSE`, `B_SPLINE_CURVE_WITH_KNOTS`, `TRIMMED_CURVE`, and `EDGE_CURVE`
 - Emits lightweight line, polyline, circle, arc, sampled ellipse, and sampled B-spline wireframes with 3D bounds for preview adapters
 - Counts unsupported curve records instead of flattening them into misleading straight lines
 - Honors `EDGE_CURVE` same-sense direction for circular arcs, polylines, sampled ellipses, and sampled B-splines
+- Resolves `TRIMMED_CURVE` wrappers to their lightweight basis curves before preview conversion
 - Applies `AXIS2_PLACEMENT_3D` direction/ref-direction axes when sampling ellipses and non-XY circles
 - Has no runtime dependencies beyond the Kotlin/JDK standard libraries
 - Publishes as `dev.jaeyoung:fileloom-step-lite`

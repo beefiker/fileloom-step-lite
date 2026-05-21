@@ -147,6 +147,7 @@ class StepLiteParser(
         val circles = linkedMapOf<Int, CircleRecord>()
         val ellipses = linkedMapOf<Int, EllipseRecord>()
         val splines = linkedMapOf<Int, BSplineRecord>()
+        val trimmedCurves = linkedMapOf<Int, TrimmedCurveRecord>()
         val lineCurves = linkedSetOf<Int>()
         val polylineCurves = linkedMapOf<Int, List<Int>>()
         val edges = ArrayList<EdgeCurveRecord>()
@@ -222,6 +223,10 @@ class StepLiteParser(
                     val spline = record.args.toBSplineRecord()
                     if (spline != null) splines[record.id] = spline
                 }
+                "TRIMMED_CURVE" -> {
+                    val trimmedCurve = record.args.toTrimmedCurveRecord()
+                    if (trimmedCurve != null) trimmedCurves[record.id] = trimmedCurve
+                }
                 "EDGE_CURVE" -> {
                     val refs = record.args.refs()
                     if (refs.size >= 3) {
@@ -258,6 +263,7 @@ class StepLiteParser(
                     circles = circles,
                     ellipses = ellipses,
                     splines = splines,
+                    trimmedCurves = trimmedCurves,
                     lineCurves = lineCurves,
                     polylineCurves = polylineCurves
                 )
@@ -320,6 +326,16 @@ class StepLiteParser(
         val knots: List<Double>
     )
 
+    private data class TrimmedCurveRecord(
+        val basisCurveId: Int,
+        val sameSense: Boolean
+    )
+
+    private data class ResolvedCurveRecord(
+        val curveId: Int,
+        val sameSense: Boolean
+    )
+
     private fun EdgeCurveRecord.toEntity(
         start: StepLitePoint,
         end: StepLitePoint,
@@ -329,16 +345,21 @@ class StepLiteParser(
         circles: Map<Int, CircleRecord>,
         ellipses: Map<Int, EllipseRecord>,
         splines: Map<Int, BSplineRecord>,
+        trimmedCurves: Map<Int, TrimmedCurveRecord>,
         lineCurves: Set<Int>,
         polylineCurves: Map<Int, List<Int>>
     ): StepLiteEntity? {
-        val circle = circles[curveId]
+        val resolvedCurve = resolveCurve(trimmedCurves)
+        val resolvedCurveId = resolvedCurve.curveId
+        val resolvedSameSense = resolvedCurve.sameSense
+
+        val circle = circles[resolvedCurveId]
         val circlePlacement = circle?.let { placements[it.placementId] }
         val center = circlePlacement?.let { points[it.locationPointId] }
         if (circle != null && circlePlacement != null && center != null) {
             val circleBasis = circlePlacement.toBasis(directions)
-            val arcStart = if (sameSense) start else end
-            val arcEnd = if (sameSense) end else start
+            val arcStart = if (resolvedSameSense) start else end
+            val arcEnd = if (resolvedSameSense) end else start
             if (!circleBasis.isFlatInPreviewPlane()) {
                 return StepLiteEntity.Polyline(
                     points = circle.toPolylinePoints(
@@ -368,12 +389,12 @@ class StepLiteParser(
             }
         }
 
-        val ellipse = ellipses[curveId]
+        val ellipse = ellipses[resolvedCurveId]
         val ellipsePlacement = ellipse?.let { placements[it.placementId] }
         val ellipseCenter = ellipsePlacement?.let { points[it.locationPointId] }
         if (ellipse != null && ellipsePlacement != null && ellipseCenter != null) {
-            val ellipseStart = if (sameSense) start else end
-            val ellipseEnd = if (sameSense) end else start
+            val ellipseStart = if (resolvedSameSense) start else end
+            val ellipseEnd = if (resolvedSameSense) end else start
             return StepLiteEntity.Polyline(
                 points = ellipse.toPolylinePoints(
                     center = ellipseCenter,
@@ -386,32 +407,32 @@ class StepLiteParser(
             )
         }
 
-        val spline = splines[curveId]
+        val spline = splines[resolvedCurveId]
         if (spline != null) {
             val splinePoints = spline.toPolylinePoints(points)
                 ?.orientedBetween(
-                    start = if (sameSense) start else end,
-                    end = if (sameSense) end else start
+                    start = if (resolvedSameSense) start else end,
+                    end = if (resolvedSameSense) end else start
                 )
             return splinePoints?.let {
                 StepLiteEntity.Polyline(points = it, sourceId = sourceId)
             }
         }
 
-        val polylinePointIds = polylineCurves[curveId]
+        val polylinePointIds = polylineCurves[resolvedCurveId]
         if (polylinePointIds != null) {
             val polylinePoints = polylinePointIds.mapNotNull(points::get)
                 .takeIf { it.size >= 2 }
                 ?.orientedBetween(
-                    start = if (sameSense) start else end,
-                    end = if (sameSense) end else start
+                    start = if (resolvedSameSense) start else end,
+                    end = if (resolvedSameSense) end else start
                 )
             return polylinePoints?.let {
                 StepLiteEntity.Polyline(points = it, sourceId = sourceId)
             }
         }
 
-        return if (curveId in lineCurves) {
+        return if (resolvedCurveId in lineCurves) {
             StepLiteEntity.Line(
                 start = start,
                 end = end,
@@ -420,6 +441,17 @@ class StepLiteParser(
         } else {
             null
         }
+    }
+
+    private fun EdgeCurveRecord.resolveCurve(trimmedCurves: Map<Int, TrimmedCurveRecord>): ResolvedCurveRecord {
+        var id = curveId
+        var sense = sameSense
+        repeat(MaxTrimmedCurveDepth) {
+            val trimmedCurve = trimmedCurves[id] ?: return ResolvedCurveRecord(id, sense)
+            id = trimmedCurve.basisCurveId
+            sense = sense == trimmedCurve.sameSense
+        }
+        return ResolvedCurveRecord(id, sense)
     }
 
     private fun CircleRecord.toPolylinePoints(
@@ -590,6 +622,14 @@ class StepLiteParser(
         )
     }
 
+    private fun String.toTrimmedCurveRecord(): TrimmedCurveRecord? {
+        val basisCurveId = refs().firstOrNull() ?: return null
+        return TrimmedCurveRecord(
+            basisCurveId = basisCurveId,
+            sameSense = lastTopLevelLogical() ?: true
+        )
+    }
+
     private companion object {
         private const val StepHeader = "ISO-10303-21;"
         private const val DefaultMaxBytes = 16 * 1024 * 1024
@@ -598,6 +638,7 @@ class StepLiteParser(
         private const val CircleSegments = 32
         private const val EllipseSegments = 32
         private const val SplineSegments = 32
+        private const val MaxTrimmedCurveDepth = 8
         private val DefaultXAxis = DirectionRecord(1.0, 0.0, 0.0)
         private val DefaultYAxis = DirectionRecord(0.0, 1.0, 0.0)
         private val DefaultZAxis = DirectionRecord(0.0, 0.0, 1.0)
