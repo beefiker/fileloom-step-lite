@@ -1036,8 +1036,8 @@ class StepLiteParser(
 
         return if (resolvedCurveId in lineCurves) {
             StepLiteEntity.Line(
-                start = basisStart,
-                end = basisEnd,
+                start = if (resolvedSameSense) basisStart else basisEnd,
+                end = if (resolvedSameSense) basisEnd else basisStart,
                 sourceId = sourceId
             ).withResolvedOffset()
         } else {

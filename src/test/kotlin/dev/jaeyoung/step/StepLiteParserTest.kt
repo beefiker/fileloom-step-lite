@@ -1140,6 +1140,26 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun honorsStandalonePointTrimmedLineReverseSense() {
+        val result = StepLiteParser().parse(StandaloneReversePointTrimmedLineStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val line = document.entities.single()
+        assertTrue(line is StepLiteEntity.Line)
+        line as StepLiteEntity.Line
+        assertClose(1.0, line.start.x)
+        assertClose(8.0, line.start.y)
+        assertClose(1.0, line.start.z)
+        assertClose(1.0, line.end.x)
+        assertClose(4.0, line.end.y)
+        assertClose(1.0, line.end.z)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesSimpleBSplineCurvesWithEndpointPreservingFallback() {
         val result = StepLiteParser().parse(SimpleBSplineStep.byteInputStream())
 
@@ -2718,6 +2738,30 @@ class StepLiteParserTest {
             #12=VECTOR('',#11,2.);
             #20=LINE('',#10,#12);
             #30=TRIMMED_CURVE('',#20,(PARAMETER_VALUE(1.)),(PARAMETER_VALUE(3.)),.T.,.PARAMETER.);
+            #40=GEOMETRIC_CURVE_SET('',(#30));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StandaloneReversePointTrimmedLineStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom standalone reverse point trimmed line STEP fixture'),'2;1');
+            FILE_NAME('standalone-reverse-point-trimmed-line.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Standalone Reverse Point Trimmed Line Fixture','Standalone Reverse Point Trimmed Line Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(1.,2.,1.));
+            #11=DIRECTION('',(0.,2.,0.));
+            #12=VECTOR('',#11,6.);
+            #13=CARTESIAN_POINT('',(1.,4.,1.));
+            #14=CARTESIAN_POINT('',(1.,8.,1.));
+            #20=LINE('',#10,#12);
+            #30=TRIMMED_CURVE('',#20,(#13),(#14),.F.,.CARTESIAN.);
             #40=GEOMETRIC_CURVE_SET('',(#30));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
