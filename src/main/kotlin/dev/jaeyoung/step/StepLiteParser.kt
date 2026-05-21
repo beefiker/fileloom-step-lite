@@ -3,6 +3,7 @@ package dev.jaeyoung.step
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
+import kotlin.math.abs
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.ceil
@@ -652,6 +653,8 @@ class StepLiteParser(
         val sameSense: Boolean,
         val trimStartPointId: Int? = null,
         val trimEndPointId: Int? = null,
+        val trimStartParameter: Double? = null,
+        val trimEndParameter: Double? = null,
         val offsetDistance: Double? = null,
         val offsetDirectionId: Int? = null
     )
@@ -1038,6 +1041,22 @@ class StepLiteParser(
             )
         }
 
+        val startParameter = trimStartParameter
+        val endParameter = trimEndParameter
+        if (startParameter != null && endParameter != null) {
+            return basisCurveId.toParameterTrimmedEntity(
+                sourceId = sourceId,
+                sameSense = sameSense,
+                startParameter = startParameter,
+                endParameter = endParameter,
+                points = points,
+                directions = directions,
+                placements = placements,
+                circles = circles,
+                ellipses = ellipses
+            )?.let { applyOffset(it, directions) }
+        }
+
         circles[basisCurveId]?.toStandaloneEntity(
             sourceId = sourceId,
             points = points,
@@ -1171,6 +1190,23 @@ class StepLiteParser(
                         lineRecords = lineRecords,
                         polylineCurves = polylineCurves,
                         depth = depth + 1
+                    ),
+                    directions = directions
+                )
+            }
+            val trimStartParameter = wrapper.trimStartParameter
+            val trimEndParameter = wrapper.trimEndParameter
+            if (trimStartParameter != null && trimEndParameter != null) {
+                return wrapper.applyOffset(
+                    wrapper.basisCurveId.toParameterTrimmedBoundedCurvePoints(
+                        sameSense = wrapperSameSense,
+                        startParameter = trimStartParameter,
+                        endParameter = trimEndParameter,
+                        points = points,
+                        directions = directions,
+                        placements = placements,
+                        circles = circles,
+                        ellipses = ellipses
                     ),
                     directions = directions
                 )
@@ -1357,6 +1393,102 @@ class StepLiteParser(
         )?.orientedBetween(start = start, end = end)
     }
 
+    private fun Int.toParameterTrimmedBoundedCurvePoints(
+        sameSense: Boolean,
+        startParameter: Double,
+        endParameter: Double,
+        points: Map<Int, StepLitePoint>,
+        directions: Map<Int, DirectionRecord>,
+        placements: Map<Int, AxisPlacementRecord>,
+        circles: Map<Int, CircleRecord>,
+        ellipses: Map<Int, EllipseRecord>
+    ): List<StepLitePoint>? {
+        return toParameterTrimmedEntity(
+            sourceId = 0,
+            sameSense = sameSense,
+            startParameter = startParameter,
+            endParameter = endParameter,
+            points = points,
+            directions = directions,
+            placements = placements,
+            circles = circles,
+            ellipses = ellipses
+        )?.toPathPoints()
+    }
+
+    private fun Int.toParameterTrimmedEntity(
+        sourceId: Int,
+        sameSense: Boolean,
+        startParameter: Double,
+        endParameter: Double,
+        points: Map<Int, StepLitePoint>,
+        directions: Map<Int, DirectionRecord>,
+        placements: Map<Int, AxisPlacementRecord>,
+        circles: Map<Int, CircleRecord>,
+        ellipses: Map<Int, EllipseRecord>
+    ): StepLiteEntity? {
+        val startAngle = if (sameSense) startParameter else endParameter
+        val endAngle = if (sameSense) endParameter else startParameter
+
+        val circle = circles[this]
+        val circlePlacement = circle?.let { placements[it.placementId] }
+        val circleCenter = circlePlacement?.let { points[it.locationPointId] }
+        if (circle != null && circlePlacement != null && circleCenter != null) {
+            val basis = circlePlacement.toBasis(directions)
+            val start = circleCenter.pointOnPlacedConic(basis, circle.radius, circle.radius, startAngle)
+            val end = circleCenter.pointOnPlacedConic(basis, circle.radius, circle.radius, endAngle)
+            val closed = start.samePositionAs(end) && abs(endAngle - startAngle) > CoordinateTolerance
+            if (basis.isFlatInPreviewPlane()) {
+                return if (closed) {
+                    StepLiteEntity.Circle(
+                        center = circleCenter,
+                        radius = circle.radius,
+                        sourceId = sourceId
+                    )
+                } else {
+                    StepLiteEntity.Arc(
+                        center = circleCenter,
+                        radius = circle.radius,
+                        startAngleRadians = start.angleFrom(circleCenter),
+                        endAngleRadians = end.angleFrom(circleCenter),
+                        sourceId = sourceId
+                    )
+                }
+            }
+            return StepLiteEntity.Polyline(
+                points = circle.toPolylinePoints(
+                    center = circleCenter,
+                    basis = basis,
+                    start = start,
+                    end = end,
+                    closed = closed
+                ),
+                sourceId = sourceId
+            )
+        }
+
+        val ellipse = ellipses[this]
+        val ellipsePlacement = ellipse?.let { placements[it.placementId] }
+        val ellipseCenter = ellipsePlacement?.let { points[it.locationPointId] }
+        if (ellipse != null && ellipsePlacement != null && ellipseCenter != null) {
+            val basis = ellipsePlacement.toBasis(directions)
+            val start = ellipseCenter.pointOnPlacedConic(basis, ellipse.majorRadius, ellipse.minorRadius, startAngle)
+            val end = ellipseCenter.pointOnPlacedConic(basis, ellipse.majorRadius, ellipse.minorRadius, endAngle)
+            return StepLiteEntity.Polyline(
+                points = ellipse.toPolylinePoints(
+                    center = ellipseCenter,
+                    basis = basis,
+                    start = start,
+                    end = end,
+                    closed = start.samePositionAs(end) && abs(endAngle - startAngle) > CoordinateTolerance
+                ),
+                sourceId = sourceId
+            )
+        }
+
+        return null
+    }
+
     private fun CircleRecord.toPolylinePoints(
         center: StepLitePoint,
         basis: PlacementBasis,
@@ -1520,6 +1652,21 @@ class StepLiteParser(
                 z = center.z + basis.xAxis.z * majorOffset + basis.yAxis.z * minorOffset
             )
         }
+    }
+
+    private fun StepLitePoint.pointOnPlacedConic(
+        basis: PlacementBasis,
+        majorRadius: Double,
+        minorRadius: Double,
+        angle: Double
+    ): StepLitePoint {
+        val majorOffset = majorRadius * cos(angle)
+        val minorOffset = minorRadius * sin(angle)
+        return StepLitePoint(
+            x = x + basis.xAxis.x * majorOffset + basis.yAxis.x * minorOffset,
+            y = y + basis.xAxis.y * majorOffset + basis.yAxis.y * minorOffset,
+            z = z + basis.xAxis.z * majorOffset + basis.yAxis.z * minorOffset
+        )
     }
 
     private fun AxisPlacementRecord.toBasis(directions: Map<Int, DirectionRecord>): PlacementBasis {
@@ -1859,13 +2006,19 @@ class StepLiteParser(
     }
 
     private fun String.toTrimmedCurveRecord(): CurveWrapperRecord? {
-        val refs = refs()
-        val basisCurveId = refs.firstOrNull() ?: return null
+        val fields = topLevelFields()
+        val trimStartField = fields.getOrNull(2)
+        val trimEndField = fields.getOrNull(3)
+        val basisCurveId = fields.getOrNull(1)?.refs()?.firstOrNull()
+            ?: refs().firstOrNull()
+            ?: return null
         return CurveWrapperRecord(
             basisCurveId = basisCurveId,
             sameSense = lastTopLevelLogical() ?: true,
-            trimStartPointId = refs.getOrNull(1),
-            trimEndPointId = refs.getOrNull(2)
+            trimStartPointId = trimStartField?.refs()?.firstOrNull(),
+            trimEndPointId = trimEndField?.refs()?.firstOrNull(),
+            trimStartParameter = trimStartField?.parameterTrimValueOrNull(),
+            trimEndParameter = trimEndField?.parameterTrimValueOrNull()
         )
     }
 
@@ -2155,6 +2308,13 @@ private fun String.topLevelNumberTuples(): List<List<Double>> {
         index += 1
     }
     return tuples
+}
+
+private fun String.parameterTrimValueOrNull(): Double? {
+    if (refs().isNotEmpty()) return null
+    val values = deepNumberTuples().flatten()
+    if (values.isEmpty()) return null
+    return if (contains("PARAMETER_VALUE", ignoreCase = true) || values.size == 1) values.first() else null
 }
 
 private fun String.topLevelFields(): List<String> {

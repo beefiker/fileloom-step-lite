@@ -805,6 +805,34 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun emitsStandaloneParameterTrimmedConicsWithoutEdgeRecords() {
+        val result = StepLiteParser().parse(StandaloneParameterTrimmedConicStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(2, document.entities.size)
+        val arc = document.entities[0]
+        assertTrue(arc is StepLiteEntity.Arc)
+        arc as StepLiteEntity.Arc
+        assertClose(5.0, arc.center.x)
+        assertClose(5.0, arc.center.y)
+        assertClose(2.5, arc.radius)
+        assertClose(0.0, arc.startAngleRadians)
+        assertClose(PI / 2.0, arc.endAngleRadians)
+
+        val ellipse = document.entities[1]
+        assertTrue(ellipse is StepLiteEntity.Polyline)
+        ellipse as StepLiteEntity.Polyline
+        assertTrue(ellipse.points.size > 4)
+        assertClose(26.0, ellipse.points.first().x)
+        assertClose(10.0, ellipse.points.first().y)
+        assertClose(20.0, ellipse.points.last().x)
+        assertClose(13.0, ellipse.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun emitsStandaloneSurfaceCurveConicsWithoutEdgeRecords() {
         val result = StepLiteParser().parse(StandaloneSurfaceConicStep.byteInputStream())
 
@@ -2016,6 +2044,33 @@ class StepLiteParserTest {
             #21=CARTESIAN_POINT('',(5.,7.5,0.));
             #30=TRIMMED_CURVE('',#14,(#20),(#21),.T.,.CARTESIAN.);
             #40=GEOMETRIC_CURVE_SET('',(#30));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StandaloneParameterTrimmedConicStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom standalone parameter trimmed conic STEP fixture'),'2;1');
+            FILE_NAME('standalone-parameter-trimmed-conic.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Standalone Parameter Trimmed Conic Fixture','Standalone Parameter Trimmed Conic Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(5.,5.,0.));
+            #11=CARTESIAN_POINT('',(20.,10.,0.));
+            #12=DIRECTION('',(0.,0.,1.));
+            #13=DIRECTION('',(1.,0.,0.));
+            #14=AXIS2_PLACEMENT_3D('',#10,#12,#13);
+            #15=AXIS2_PLACEMENT_3D('',#11,#12,#13);
+            #20=CIRCLE('',#14,2.5);
+            #21=ELLIPSE('',#15,6.,3.);
+            #30=TRIMMED_CURVE('',#20,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(1.5707963267948966)),.T.,.PARAMETER.);
+            #31=TRIMMED_CURVE('',#21,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(1.5707963267948966)),.T.,.PARAMETER.);
+            #40=GEOMETRIC_CURVE_SET('',(#30,#31));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
