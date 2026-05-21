@@ -1,6 +1,7 @@
 package dev.jaeyoung.step
 
 import java.io.ByteArrayInputStream
+import kotlin.math.PI
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -64,6 +65,32 @@ class StepLiteParserTest {
             StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.TOO_LARGE),
             result
         )
+    }
+
+    @Test
+    fun parsesCircularEdgeCurvesIntoArcsAndClosedCircles() {
+        val result = StepLiteParser().parse(CircularStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(2, document.entities.size)
+        val arc = document.entities[0]
+        assertTrue(arc is StepLiteEntity.Arc)
+        arc as StepLiteEntity.Arc
+        assertClose(5.0, arc.center.x)
+        assertClose(5.0, arc.center.y)
+        assertClose(2.5, arc.radius)
+        assertClose(0.0, arc.startAngleRadians)
+        assertClose(PI / 2.0, arc.endAngleRadians)
+
+        val circle = document.entities[1]
+        assertTrue(circle is StepLiteEntity.Circle)
+        circle as StepLiteEntity.Circle
+        assertClose(20.0, circle.center.x)
+        assertClose(20.0, circle.center.y)
+        assertClose(4.0, circle.radius)
+        assertEquals(0, document.unsupportedEntityCount)
     }
 
     private fun assertClose(expected: Double, actual: Double) {
@@ -146,6 +173,38 @@ class StepLiteParserTest {
             #111=DIRECTION('',(0.,0.,1.));
             #112=DIRECTION('',(0.,0.,1.));
             #113=DIRECTION('',(0.,0.,1.));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val CircularStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom circular STEP fixture'),'2;1');
+            FILE_NAME('circles.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Circular Fixture','Circular Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(5.,5.,0.));
+            #11=DIRECTION('',(0.,0.,1.));
+            #12=DIRECTION('',(1.,0.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #14=CIRCLE('',#13,2.5);
+            #20=CARTESIAN_POINT('',(7.5,5.,0.));
+            #21=CARTESIAN_POINT('',(5.,7.5,0.));
+            #22=VERTEX_POINT('',#20);
+            #23=VERTEX_POINT('',#21);
+            #24=EDGE_CURVE('',#22,#23,#14,.T.);
+            #30=CARTESIAN_POINT('',(20.,20.,0.));
+            #31=AXIS2_PLACEMENT_3D('',#30,#11,#12);
+            #32=CIRCLE('',#31,4.);
+            #33=CARTESIAN_POINT('',(24.,20.,0.));
+            #34=VERTEX_POINT('',#33);
+            #35=EDGE_CURVE('',#34,#34,#32,.T.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

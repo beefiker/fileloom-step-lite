@@ -3,6 +3,7 @@ package dev.jaeyoung.step
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
+import kotlin.math.atan2
 import kotlin.math.max
 import kotlin.math.min
 
@@ -51,6 +52,20 @@ sealed interface StepLiteEntity {
     data class Line(
         val start: StepLitePoint,
         val end: StepLitePoint,
+        override val sourceId: Int? = null
+    ) : StepLiteEntity
+
+    data class Circle(
+        val center: StepLitePoint,
+        val radius: Double,
+        override val sourceId: Int? = null
+    ) : StepLiteEntity
+
+    data class Arc(
+        val center: StepLitePoint,
+        val radius: Double,
+        val startAngleRadians: Double,
+        val endAngleRadians: Double,
         override val sourceId: Int? = null
     ) : StepLiteEntity
 }
@@ -106,6 +121,8 @@ class StepLiteParser(
     private fun parseText(text: String): StepLiteParseResult {
         val points = linkedMapOf<Int, StepLitePoint>()
         val vertexPoints = linkedMapOf<Int, Int>()
+        val placements = linkedMapOf<Int, AxisPlacementRecord>()
+        val circles = linkedMapOf<Int, CircleRecord>()
         val edges = ArrayList<EdgeCurveRecord>()
         var productName = ""
         var unit = StepLiteUnit.UNKNOWN
@@ -131,10 +148,26 @@ class StepLiteParser(
                     val pointRef = record.args.refs().firstOrNull()
                     if (pointRef != null) vertexPoints[record.id] = pointRef
                 }
+                "AXIS2_PLACEMENT_3D" -> {
+                    val refs = record.args.refs()
+                    if (refs.isNotEmpty()) {
+                        placements[record.id] = AxisPlacementRecord(locationPointId = refs[0])
+                    }
+                }
+                "CIRCLE" -> {
+                    val placementId = record.args.refs().firstOrNull()
+                    val radius = record.args.topLevelNumbers().lastOrNull()
+                    if (placementId != null && radius != null && radius > 0.0) {
+                        circles[record.id] = CircleRecord(
+                            placementId = placementId,
+                            radius = radius
+                        )
+                    }
+                }
                 "EDGE_CURVE" -> {
                     val refs = record.args.refs()
-                    if (refs.size >= 2) {
-                        edges += EdgeCurveRecord(record.id, refs[0], refs[1])
+                    if (refs.size >= 3) {
+                        edges += EdgeCurveRecord(record.id, refs[0], refs[1], refs[2])
                     } else {
                         unsupported += 1
                     }
@@ -146,26 +179,48 @@ class StepLiteParser(
             }
         }
 
-        val entities = ArrayList<StepLiteEntity.Line>(min(edges.size, maxEntities))
+        val entities = ArrayList<StepLiteEntity>(min(edges.size, maxEntities))
         for (edge in edges) {
             if (entities.size >= maxEntities) break
             val start = vertexPoints[edge.startVertexId]?.let(points::get)
             val end = vertexPoints[edge.endVertexId]?.let(points::get)
             if (start != null && end != null) {
-                entities += StepLiteEntity.Line(
-                    start = start,
-                    end = end,
-                    sourceId = edge.sourceId
-                )
+                val circle = circles[edge.curveId]
+                val center = circle
+                    ?.let { placements[it.placementId] }
+                    ?.let { points[it.locationPointId] }
+                entities += if (circle != null && center != null) {
+                    if (start.samePositionAs(end)) {
+                        StepLiteEntity.Circle(
+                            center = center,
+                            radius = circle.radius,
+                            sourceId = edge.sourceId
+                        )
+                    } else {
+                        StepLiteEntity.Arc(
+                            center = center,
+                            radius = circle.radius,
+                            startAngleRadians = start.angleFrom(center),
+                            endAngleRadians = end.angleFrom(center),
+                            sourceId = edge.sourceId
+                        )
+                    }
+                } else {
+                    StepLiteEntity.Line(
+                        start = start,
+                        end = end,
+                        sourceId = edge.sourceId
+                    )
+                }
             } else {
                 unsupported += 1
             }
         }
 
         val bounds = entities.asSequence()
-            .flatMap { sequenceOf(it.start, it.end) }
-            .fold(null as StepLiteBounds?) { current, point ->
-                current?.include(point) ?: StepLiteBounds.fromPoint(point)
+            .map { it.bounds() }
+            .fold(null as StepLiteBounds?) { current, bounds ->
+                current?.include(bounds.min)?.include(bounds.max) ?: bounds
             }
             ?: return StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED)
 
@@ -183,7 +238,17 @@ class StepLiteParser(
     private data class EdgeCurveRecord(
         val sourceId: Int,
         val startVertexId: Int,
-        val endVertexId: Int
+        val endVertexId: Int,
+        val curveId: Int
+    )
+
+    private data class AxisPlacementRecord(
+        val locationPointId: Int
+    )
+
+    private data class CircleRecord(
+        val placementId: Int,
+        val radius: Double
     )
 
     private companion object {
@@ -347,12 +412,73 @@ private fun String.firstNumberTuple(minSize: Int): List<Double>? {
     return null
 }
 
+private fun String.topLevelNumbers(): List<Double> {
+    val values = ArrayList<Double>()
+    var depth = 0
+    var tokenStart = -1
+
+    fun flush(end: Int) {
+        if (tokenStart >= 0) {
+            substring(tokenStart, end).toStepDoubleOrNull()?.let(values::add)
+            tokenStart = -1
+        }
+    }
+
+    for (index in indices) {
+        val char = this[index]
+        when {
+            char == '(' -> {
+                flush(index)
+                depth += 1
+            }
+            char == ')' -> {
+                flush(index)
+                depth -= 1
+            }
+            depth == 0 && char.isNumberTokenChar() -> {
+                if (tokenStart < 0) tokenStart = index
+            }
+            depth == 0 -> flush(index)
+        }
+    }
+    flush(length)
+    return values
+}
+
+private fun Char.isNumberTokenChar(): Boolean {
+    return isDigit() || this == '+' || this == '-' || this == '.' || this == 'E' || this == 'e' || this == 'D' || this == 'd'
+}
+
 private fun List<Double>.toPoint(): StepLitePoint {
     return StepLitePoint(
         x = this[0],
         y = this[1],
         z = getOrElse(2) { 0.0 }
     )
+}
+
+private fun StepLitePoint.samePositionAs(other: StepLitePoint): Boolean {
+    return kotlin.math.abs(x - other.x) <= CoordinateTolerance &&
+        kotlin.math.abs(y - other.y) <= CoordinateTolerance &&
+        kotlin.math.abs(z - other.z) <= CoordinateTolerance
+}
+
+private fun StepLitePoint.angleFrom(center: StepLitePoint): Double {
+    return atan2(y - center.y, x - center.x)
+}
+
+private fun StepLiteEntity.bounds(): StepLiteBounds {
+    return when (this) {
+        is StepLiteEntity.Line -> StepLiteBounds.fromPoint(start).include(end)
+        is StepLiteEntity.Circle -> StepLiteBounds(
+            min = StepLitePoint(center.x - radius, center.y - radius, center.z),
+            max = StepLitePoint(center.x + radius, center.y + radius, center.z)
+        )
+        is StepLiteEntity.Arc -> StepLiteBounds(
+            min = StepLitePoint(center.x - radius, center.y - radius, center.z),
+            max = StepLitePoint(center.x + radius, center.y + radius, center.z)
+        )
+    }
 }
 
 private fun String.toStepDoubleOrNull(): Double? {
@@ -380,6 +506,8 @@ private fun String.resolveUnit(): StepLiteUnit {
 private fun maxOf(current: StepLiteUnit, candidate: StepLiteUnit): StepLiteUnit {
     return if (current == StepLiteUnit.UNKNOWN) candidate else current
 }
+
+private const val CoordinateTolerance = 1.0e-9
 
 private class StepLiteTooLargeException : RuntimeException()
 
