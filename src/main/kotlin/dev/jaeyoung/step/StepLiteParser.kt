@@ -1230,8 +1230,10 @@ class StepLiteParser(
             ) ?: return null
             if (merged.isNotEmpty() && merged.last().samePositionAs(segmentPoints.first())) {
                 merged += segmentPoints.drop(1)
-            } else {
+            } else if (merged.isEmpty()) {
                 merged += segmentPoints
+            } else {
+                return null
             }
         }
         return merged.dedupeConsecutivePoints().takeIf { it.size >= 2 }

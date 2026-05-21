@@ -661,6 +661,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsDiscontinuousStandaloneCompositeCurvesInsteadOfJoiningWithJump() {
+        val result = StepLiteParser().parse(DiscontinuousStandaloneCompositeCurveStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun parsesCompositeTrimmedConicSegmentsAsLightweightPolylines() {
         val result = StepLiteParser().parse(CompositeTrimmedConicCurveStep.byteInputStream())
 
@@ -2087,6 +2097,31 @@ class StepLiteParserTest {
             #31=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#21);
             #40=COMPOSITE_CURVE('',(#30,#31),.F.);
             #50=GEOMETRIC_CURVE_SET('',(#40));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val DiscontinuousStandaloneCompositeCurveStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom discontinuous composite curve STEP fixture'),'2;1');
+            FILE_NAME('discontinuous-composite-curve.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Discontinuous Composite Curve Fixture','Discontinuous Composite Curve Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(4.,0.,0.));
+            #12=CARTESIAN_POINT('',(8.,5.,0.));
+            #13=CARTESIAN_POINT('',(12.,5.,0.));
+            #20=POLYLINE('',(#10,#11));
+            #21=POLYLINE('',(#12,#13));
+            #30=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#20);
+            #31=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#21);
+            #40=COMPOSITE_CURVE('',(#30,#31),.F.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
