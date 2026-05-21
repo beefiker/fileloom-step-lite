@@ -699,10 +699,38 @@ class StepLiteParser(
         directions: Map<Int, DirectionRecord>,
         vectors: Map<Int, VectorRecord>
     ): List<StepLitePoint>? {
+        val start = pointAtParameter(0.0, points, directions, vectors) ?: return null
+        val end = pointAtParameter(1.0, points, directions, vectors) ?: return null
+        return listOf(start, end)
+    }
+
+    private fun LineRecord.toParameterTrimmedEntity(
+        sourceId: Int,
+        sameSense: Boolean,
+        startParameter: Double,
+        endParameter: Double,
+        points: Map<Int, StepLitePoint>,
+        directions: Map<Int, DirectionRecord>,
+        vectors: Map<Int, VectorRecord>
+    ): StepLiteEntity.Line? {
+        val startValue = if (sameSense) startParameter else endParameter
+        val endValue = if (sameSense) endParameter else startParameter
+        val start = pointAtParameter(startValue, points, directions, vectors) ?: return null
+        val end = pointAtParameter(endValue, points, directions, vectors) ?: return null
+        if (start.samePositionAs(end)) return null
+        return StepLiteEntity.Line(start = start, end = end, sourceId = sourceId)
+    }
+
+    private fun LineRecord.pointAtParameter(
+        parameter: Double,
+        points: Map<Int, StepLitePoint>,
+        directions: Map<Int, DirectionRecord>,
+        vectors: Map<Int, VectorRecord>
+    ): StepLitePoint? {
         val start = points[pointId] ?: return null
         val vector = vectors[vectorId] ?: return null
         val direction = directions[vector.directionId]?.normalizedOrNull() ?: return null
-        return listOf(start, start.offsetBy(direction, vector.magnitude))
+        return start.offsetBy(direction, vector.magnitude * parameter)
     }
 
     private fun List<Int>.toEdgeLoopPolyline(
@@ -1141,12 +1169,14 @@ class StepLiteParser(
                 endParameter = endParameter,
                 points = points,
                 directions = directions,
+                vectors = vectors,
                 placements = placements,
                 circles = circles,
                 ellipses = ellipses,
                 parabolas = parabolas,
                 hyperbolas = hyperbolas,
-                splines = splines
+                splines = splines,
+                lineRecords = lineRecords
             )?.let { applyOffset(it, directions) }
         }
 
@@ -1299,12 +1329,14 @@ class StepLiteParser(
                         endParameter = trimEndParameter,
                         points = points,
                         directions = directions,
+                        vectors = vectors,
                         placements = placements,
                         circles = circles,
                         ellipses = ellipses,
                         parabolas = parabolas,
                         hyperbolas = hyperbolas,
-                        splines = splines
+                        splines = splines,
+                        lineRecords = lineRecords
                     ),
                     directions = directions
                 )
@@ -1503,12 +1535,14 @@ class StepLiteParser(
         endParameter: Double,
         points: Map<Int, StepLitePoint>,
         directions: Map<Int, DirectionRecord>,
+        vectors: Map<Int, VectorRecord>,
         placements: Map<Int, AxisPlacementRecord>,
         circles: Map<Int, CircleRecord>,
         ellipses: Map<Int, EllipseRecord>,
         parabolas: Map<Int, ParabolaRecord>,
         hyperbolas: Map<Int, HyperbolaRecord>,
-        splines: Map<Int, BSplineRecord>
+        splines: Map<Int, BSplineRecord>,
+        lineRecords: Map<Int, LineRecord>
     ): List<StepLitePoint>? {
         return toParameterTrimmedEntity(
             sourceId = 0,
@@ -1517,12 +1551,14 @@ class StepLiteParser(
             endParameter = endParameter,
             points = points,
             directions = directions,
+            vectors = vectors,
             placements = placements,
             circles = circles,
             ellipses = ellipses,
             parabolas = parabolas,
             hyperbolas = hyperbolas,
-            splines = splines
+            splines = splines,
+            lineRecords = lineRecords
         )?.toPathPoints()
     }
 
@@ -1533,15 +1569,30 @@ class StepLiteParser(
         endParameter: Double,
         points: Map<Int, StepLitePoint>,
         directions: Map<Int, DirectionRecord>,
+        vectors: Map<Int, VectorRecord>,
         placements: Map<Int, AxisPlacementRecord>,
         circles: Map<Int, CircleRecord>,
         ellipses: Map<Int, EllipseRecord>,
         parabolas: Map<Int, ParabolaRecord>,
         hyperbolas: Map<Int, HyperbolaRecord>,
-        splines: Map<Int, BSplineRecord>
+        splines: Map<Int, BSplineRecord>,
+        lineRecords: Map<Int, LineRecord>
     ): StepLiteEntity? {
         val startValue = if (sameSense) startParameter else endParameter
         val endValue = if (sameSense) endParameter else startParameter
+
+        val line = lineRecords[this]
+        if (line != null) {
+            return line.toParameterTrimmedEntity(
+                sourceId = sourceId,
+                sameSense = sameSense,
+                startParameter = startParameter,
+                endParameter = endParameter,
+                points = points,
+                directions = directions,
+                vectors = vectors
+            )
+        }
 
         val circle = circles[this]
         val circlePlacement = circle?.let { placements[it.placementId] }
