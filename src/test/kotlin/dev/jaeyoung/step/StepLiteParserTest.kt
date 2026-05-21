@@ -710,6 +710,29 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun anchorsClosedCircularEdgeLoopsToTopologyVertex() {
+        val result = StepLiteParser().parse(ClosedCircularEdgeLoopStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val loop = document.entities.single()
+        assertTrue(loop is StepLiteEntity.Polyline)
+        loop as StepLiteEntity.Polyline
+        assertTrue(loop.points.size > 16)
+        assertClose(0.0, loop.points.first().x)
+        assertClose(5.0, loop.points.first().y)
+        assertClose(0.0, loop.points.last().x)
+        assertClose(5.0, loop.points.last().y)
+        assertClose(-5.0, document.bounds.min.x)
+        assertClose(-5.0, document.bounds.min.y)
+        assertClose(5.0, document.bounds.max.x)
+        assertClose(5.0, document.bounds.max.y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun leavesDiscontinuousEdgeLoopsAsRawEdgesInsteadOfFalseClosedLoops() {
         val result = StepLiteParser().parse(DiscontinuousEdgeLoopStep.byteInputStream())
 
@@ -2028,6 +2051,35 @@ class StepLiteParserTest {
             #91=DIRECTION('',(-1.,0.,0.));
             #92=DIRECTION('',(0.,-1.,0.));
             #93=DIRECTION('',(0.,0.,1.));
+            #100=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val ClosedCircularEdgeLoopStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom closed circular edge loop STEP fixture'),'2;1');
+            FILE_NAME('closed-circular-edge-loop.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Closed Circular Edge Loop Fixture','Closed Circular Edge Loop Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(0.,5.,0.));
+            #12=DIRECTION('',(0.,0.,1.));
+            #13=DIRECTION('',(1.,0.,0.));
+            #14=AXIS2_PLACEMENT_3D('',#10,#12,#13);
+            #15=CIRCLE('',#14,5.);
+            #20=VERTEX_POINT('',#11);
+            #30=EDGE_CURVE('',#20,#20,#15,.T.);
+            #40=ORIENTED_EDGE('',*,*,#30,.T.);
+            #50=EDGE_LOOP('',(#40));
+            #60=FACE_OUTER_BOUND('',#50,.T.);
+            #70=ADVANCED_FACE('',(#60),#80,.T.);
+            #80=PLANE('',#14);
             #100=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

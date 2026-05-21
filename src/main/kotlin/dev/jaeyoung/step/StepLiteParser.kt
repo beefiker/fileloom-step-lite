@@ -748,7 +748,7 @@ class StepLiteParser(
                     lineRecords = lineRecords,
                     polylineCurves = polylineCurves
                 )
-                ?.toPathPoints()
+                ?.toPathPoints(topologyStart = start, topologyEnd = end)
                 ?.orientedBetween(start = start, end = end)
                 ?: return null
             if (
@@ -773,11 +773,25 @@ class StepLiteParser(
         )
     }
 
-    private fun StepLiteEntity.toPathPoints(): List<StepLitePoint>? {
+    private fun StepLiteEntity.toPathPoints(
+        topologyStart: StepLitePoint? = null,
+        topologyEnd: StepLitePoint? = null
+    ): List<StepLitePoint>? {
         return when (this) {
             is StepLiteEntity.Line -> listOf(start, end)
             is StepLiteEntity.Polyline -> points
-            is StepLiteEntity.Circle -> sampleCircularPath(center, radius, 0.0, 2.0 * PI)
+            is StepLiteEntity.Circle -> {
+                val startAngle = if (
+                    topologyStart != null &&
+                    topologyEnd != null &&
+                    topologyStart.samePositionAs(topologyEnd)
+                ) {
+                    topologyStart.angleFrom(center)
+                } else {
+                    0.0
+                }
+                sampleCircularPath(center, radius, startAngle, startAngle + 2.0 * PI)
+            }
             is StepLiteEntity.Arc -> sampleCircularPath(center, radius, startAngleRadians, endAngleRadians)
         }.takeIf { it.size >= 2 }
     }
