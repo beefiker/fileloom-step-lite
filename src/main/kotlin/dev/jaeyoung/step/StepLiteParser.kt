@@ -159,7 +159,9 @@ class StepLiteParser(
         val lineCurves = linkedSetOf<Int>()
         val polylineCurves = linkedMapOf<Int, List<Int>>()
         val polyLoops = linkedMapOf<Int, List<Int>>()
-        val edges = ArrayList<EdgeCurveRecord>()
+        val edges = linkedMapOf<Int, EdgeCurveRecord>()
+        val orientedEdges = linkedMapOf<Int, OrientedEdgeRecord>()
+        val edgeLoops = linkedMapOf<Int, List<Int>>()
         var productName = ""
         var unit = StepLiteUnit.UNKNOWN
         var recordCount = 0
@@ -259,6 +261,14 @@ class StepLiteParser(
                     val segmentIds = record.args.toCompositeCurveRecord()
                     if (segmentIds != null) compositeCurves[record.id] = segmentIds
                 }
+                "ORIENTED_EDGE" -> {
+                    val orientedEdge = record.args.toOrientedEdgeRecord()
+                    if (orientedEdge != null) orientedEdges[record.id] = orientedEdge
+                }
+                "EDGE_LOOP" -> {
+                    val loop = record.args.toEdgeLoopRecord()
+                    if (loop != null) edgeLoops[record.id] = loop
+                }
                 "COMPLEX" -> {
                     unit = maxOf(unit, record.args.resolveUnit())
                     val direction = record.args.entityArgs("DIRECTION")
@@ -308,6 +318,10 @@ class StepLiteParser(
                     if (compositeSegment != null) compositeSegments[record.id] = compositeSegment
                     val compositeCurve = record.args.entityArgs("COMPOSITE_CURVE")?.toCompositeCurveRecord()
                     if (compositeCurve != null) compositeCurves[record.id] = compositeCurve
+                    val orientedEdge = record.args.entityArgs("ORIENTED_EDGE")?.toOrientedEdgeRecord()
+                    if (orientedEdge != null) orientedEdges[record.id] = orientedEdge
+                    val edgeLoop = record.args.entityArgs("EDGE_LOOP")?.toEdgeLoopRecord()
+                    if (edgeLoop != null) edgeLoops[record.id] = edgeLoop
                     val lineArgs = record.args.entityArgs("LINE")
                     if (lineArgs != null) {
                         lineCurves += record.id
@@ -318,7 +332,7 @@ class StepLiteParser(
                     if (edgeCurveArgs != null) {
                         val refs = edgeCurveArgs.refs()
                         if (refs.size >= 3) {
-                            edges += EdgeCurveRecord(
+                            edges[record.id] = EdgeCurveRecord(
                                 sourceId = record.id,
                                 startVertexId = refs[0],
                                 endVertexId = refs[1],
@@ -333,7 +347,7 @@ class StepLiteParser(
                 "EDGE_CURVE" -> {
                     val refs = record.args.refs()
                     if (refs.size >= 3) {
-                        edges += EdgeCurveRecord(
+                        edges[record.id] = EdgeCurveRecord(
                             sourceId = record.id,
                             startVertexId = refs[0],
                             endVertexId = refs[1],
@@ -353,18 +367,47 @@ class StepLiteParser(
 
         val entities = ArrayList<StepLiteEntity>(
             min(
-                edges.size + circles.size + ellipses.size + polyLoops.size +
+                edgeLoops.size + edges.size + circles.size + ellipses.size + polyLoops.size +
                     lineRecords.size + polylineCurves.size + splines.size + curveWrappers.size + compositeCurves.size,
                 maxEntities
             )
         )
-        val referencedCurveIds = edges.asSequence()
+        val referencedCurveIds = edges.values.asSequence()
             .map { it.curveId }
             .plus(curveWrappers.values.asSequence().map { it.basisCurveId })
             .plus(compositeSegments.values.asSequence().map { it.parentCurveId })
             .toSet()
-        for (edge in edges) {
+        val loopEdgeIds = linkedSetOf<Int>()
+        for ((sourceId, orientedEdgeIds) in edgeLoops) {
             if (entities.size >= maxEntities) break
+            orientedEdgeIds.toEdgeLoopPolyline(
+                sourceId = sourceId,
+                points = points,
+                vertexPoints = vertexPoints,
+                directions = directions,
+                placements = placements,
+                circles = circles,
+                ellipses = ellipses,
+                parabolas = parabolas,
+                hyperbolas = hyperbolas,
+                splines = splines,
+                vectors = vectors,
+                curveWrappers = curveWrappers,
+                compositeSegments = compositeSegments,
+                compositeCurves = compositeCurves,
+                lineCurves = lineCurves,
+                lineRecords = lineRecords,
+                polylineCurves = polylineCurves,
+                edges = edges,
+                orientedEdges = orientedEdges
+            )?.let { loop ->
+                entities += loop
+                loopEdgeIds += orientedEdgeIds.mapNotNull { orientedEdges[it]?.edgeId }
+            }
+        }
+        for (edge in edges.values) {
+            if (entities.size >= maxEntities) break
+            if (edge.sourceId in loopEdgeIds) continue
             val start = vertexPoints[edge.startVertexId]?.let(points::get)
             val end = vertexPoints[edge.endVertexId]?.let(points::get)
             if (start != null && end != null) {
@@ -529,6 +572,11 @@ class StepLiteParser(
         val sameSense: Boolean
     )
 
+    private data class OrientedEdgeRecord(
+        val edgeId: Int,
+        val sameSense: Boolean
+    )
+
     private data class AxisPlacementRecord(
         val locationPointId: Int,
         val axisDirectionId: Int?,
@@ -628,6 +676,102 @@ class StepLiteParser(
         val vector = vectors[vectorId] ?: return null
         val direction = directions[vector.directionId]?.normalizedOrNull() ?: return null
         return listOf(start, start.offsetBy(direction, vector.magnitude))
+    }
+
+    private fun List<Int>.toEdgeLoopPolyline(
+        sourceId: Int,
+        points: Map<Int, StepLitePoint>,
+        vertexPoints: Map<Int, Int>,
+        directions: Map<Int, DirectionRecord>,
+        placements: Map<Int, AxisPlacementRecord>,
+        circles: Map<Int, CircleRecord>,
+        ellipses: Map<Int, EllipseRecord>,
+        parabolas: Map<Int, ParabolaRecord>,
+        hyperbolas: Map<Int, HyperbolaRecord>,
+        splines: Map<Int, BSplineRecord>,
+        vectors: Map<Int, VectorRecord>,
+        curveWrappers: Map<Int, CurveWrapperRecord>,
+        compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
+        compositeCurves: Map<Int, List<Int>>,
+        lineCurves: Set<Int>,
+        lineRecords: Map<Int, LineRecord>,
+        polylineCurves: Map<Int, List<Int>>,
+        edges: Map<Int, EdgeCurveRecord>,
+        orientedEdges: Map<Int, OrientedEdgeRecord>
+    ): StepLiteEntity.Polyline? {
+        val merged = ArrayList<StepLitePoint>()
+        for (orientedEdgeId in this) {
+            val orientedEdge = orientedEdges[orientedEdgeId] ?: return null
+            val edge = edges[orientedEdge.edgeId] ?: return null
+            val startVertexId = if (orientedEdge.sameSense) edge.startVertexId else edge.endVertexId
+            val endVertexId = if (orientedEdge.sameSense) edge.endVertexId else edge.startVertexId
+            val start = vertexPoints[startVertexId]?.let(points::get) ?: return null
+            val end = vertexPoints[endVertexId]?.let(points::get) ?: return null
+            val segment = edge.copy(sameSense = edge.sameSense == orientedEdge.sameSense)
+                .toEntity(
+                    start = start,
+                    end = end,
+                    points = points,
+                    directions = directions,
+                    placements = placements,
+                    circles = circles,
+                    ellipses = ellipses,
+                    parabolas = parabolas,
+                    hyperbolas = hyperbolas,
+                    splines = splines,
+                    vectors = vectors,
+                    curveWrappers = curveWrappers,
+                    compositeSegments = compositeSegments,
+                    compositeCurves = compositeCurves,
+                    lineCurves = lineCurves,
+                    lineRecords = lineRecords,
+                    polylineCurves = polylineCurves
+                )
+                ?.toPathPoints()
+                ?: return null
+            if (merged.isNotEmpty() && merged.last().samePositionAs(segment.first())) {
+                merged += segment.drop(1)
+            } else {
+                merged += segment
+            }
+        }
+        val loopPoints = merged.dedupeConsecutivePoints().takeIf { it.size >= 3 } ?: return null
+        val closedLoopPoints = if (loopPoints.first().samePositionAs(loopPoints.last())) {
+            loopPoints
+        } else {
+            loopPoints + loopPoints.first()
+        }
+        return StepLiteEntity.Polyline(
+            points = closedLoopPoints,
+            sourceId = sourceId
+        )
+    }
+
+    private fun StepLiteEntity.toPathPoints(): List<StepLitePoint>? {
+        return when (this) {
+            is StepLiteEntity.Line -> listOf(start, end)
+            is StepLiteEntity.Polyline -> points
+            is StepLiteEntity.Circle -> sampleCircularPath(center, radius, 0.0, 2.0 * PI)
+            is StepLiteEntity.Arc -> sampleCircularPath(center, radius, startAngleRadians, endAngleRadians)
+        }.takeIf { it.size >= 2 }
+    }
+
+    private fun sampleCircularPath(
+        center: StepLitePoint,
+        radius: Double,
+        startAngleRadians: Double,
+        endAngleRadians: Double
+    ): List<StepLitePoint> {
+        val sweep = positiveSweep(startAngleRadians, endAngleRadians)
+        val segments = max(2, ceil(sweep / (2.0 * PI) * CircleSegments).toInt())
+        return List(segments + 1) { index ->
+            val angle = startAngleRadians + sweep * index / segments
+            StepLitePoint(
+                x = center.x + radius * cos(angle),
+                y = center.y + radius * sin(angle),
+                z = center.z
+            )
+        }
     }
 
     private fun EdgeCurveRecord.toEntity(
@@ -1740,6 +1884,18 @@ class StepLiteParser(
 
     private fun String.toCompositeCurveRecord(): List<Int>? {
         return refs().takeIf { it.size >= 2 }
+    }
+
+    private fun String.toOrientedEdgeRecord(): OrientedEdgeRecord? {
+        val edgeId = refs().lastOrNull() ?: return null
+        return OrientedEdgeRecord(
+            edgeId = edgeId,
+            sameSense = lastTopLevelLogical() ?: true
+        )
+    }
+
+    private fun String.toEdgeLoopRecord(): List<Int>? {
+        return refs().takeIf { it.isNotEmpty() }
     }
 
     private companion object {
