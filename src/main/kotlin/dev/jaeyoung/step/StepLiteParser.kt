@@ -2597,6 +2597,12 @@ private fun String.topLevelNumbers(): List<Double> {
                 flush(index)
                 index = skipStepString(index)
             }
+            char == '#' -> {
+                flush(index)
+                var cursor = index + 1
+                while (cursor < length && this[cursor].isDigit()) cursor += 1
+                index = cursor - 1
+            }
             char == '(' -> {
                 flush(index)
                 depth += 1
