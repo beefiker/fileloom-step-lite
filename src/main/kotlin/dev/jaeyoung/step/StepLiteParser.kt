@@ -231,6 +231,11 @@ class StepLiteParser(
                     val wrappedCurve = record.args.toBasisCurveWrapperRecord()
                     if (wrappedCurve != null) curveWrappers[record.id] = wrappedCurve
                 }
+                "COMPLEX" -> {
+                    unit = maxOf(unit, record.args.resolveUnit())
+                    val spline = record.args.toComplexBSplineRecord()
+                    if (spline != null) splines[record.id] = spline
+                }
                 "EDGE_CURVE" -> {
                     val refs = record.args.refs()
                     if (refs.size >= 3) {
@@ -245,7 +250,7 @@ class StepLiteParser(
                         unsupported += 1
                     }
                 }
-                "SI_UNIT", "CONVERSION_BASED_UNIT", "COMPLEX" -> {
+                "SI_UNIT", "CONVERSION_BASED_UNIT" -> {
                     unit = maxOf(unit, record.args.resolveUnit())
                 }
                 else -> Unit
@@ -327,7 +332,15 @@ class StepLiteParser(
     private data class BSplineRecord(
         val degree: Int,
         val controlPointIds: List<Int>,
-        val knots: List<Double>
+        val knots: List<Double>,
+        val weights: List<Double>? = null
+    )
+
+    private data class WeightedPoint(
+        val x: Double,
+        val y: Double,
+        val z: Double,
+        val weight: Double
     )
 
     private data class CurveWrapperRecord(
@@ -556,6 +569,7 @@ class StepLiteParser(
         if (controlPoints.size != controlPointIds.size || controlPoints.size <= degree || knots.size != controlPoints.size + degree + 1) {
             return null
         }
+        if (weights != null && weights.size != controlPoints.size) return null
 
         val start = knots[degree]
         val end = knots[knots.size - degree - 1]
@@ -563,7 +577,11 @@ class StepLiteParser(
 
         return List(SplineSegments + 1) { index ->
             val t = if (index == SplineSegments) end else start + (end - start) * index / SplineSegments
-            evaluateBSpline(t, controlPoints)
+            if (weights == null) {
+                evaluateBSpline(t, controlPoints)
+            } else {
+                evaluateRationalBSpline(t, controlPoints, weights)
+            }
         }.dedupeConsecutivePoints()
             .takeIf { it.size >= 2 }
     }
@@ -583,6 +601,53 @@ class StepLiteParser(
             }
         }
         return work[degree]
+    }
+
+    private fun BSplineRecord.evaluateRationalBSpline(
+        t: Double,
+        controlPoints: List<StepLitePoint>,
+        weights: List<Double>
+    ): StepLitePoint {
+        val span = findSplineSpan(t, controlPoints.size)
+        val work = ArrayList<WeightedPoint>(degree + 1)
+        for (offset in 0..degree) {
+            val index = span - degree + offset
+            val point = controlPoints[index]
+            val weight = weights[index]
+            work += WeightedPoint(
+                x = point.x * weight,
+                y = point.y * weight,
+                z = point.z * weight,
+                weight = weight
+            )
+        }
+        for (level in 1..degree) {
+            for (offset in degree downTo level) {
+                val knotIndex = span - degree + offset
+                val denominator = knots[knotIndex + degree - level + 1] - knots[knotIndex]
+                val alpha = if (denominator == 0.0) 0.0 else (t - knots[knotIndex]) / denominator
+                work[offset] = work[offset - 1].lerp(work[offset], alpha)
+            }
+        }
+        return work[degree].toPointOrNull() ?: controlPoints[span]
+    }
+
+    private fun WeightedPoint.lerp(other: WeightedPoint, alpha: Double): WeightedPoint {
+        return WeightedPoint(
+            x = x + (other.x - x) * alpha,
+            y = y + (other.y - y) * alpha,
+            z = z + (other.z - z) * alpha,
+            weight = weight + (other.weight - weight) * alpha
+        )
+    }
+
+    private fun WeightedPoint.toPointOrNull(): StepLitePoint? {
+        if (kotlin.math.abs(weight) <= CoordinateTolerance) return null
+        return StepLitePoint(
+            x = x / weight,
+            y = y / weight,
+            z = z / weight
+        )
     }
 
     private fun BSplineRecord.findSplineSpan(t: Double, controlPointCount: Int): Int {
@@ -607,11 +672,43 @@ class StepLiteParser(
         if (degree < 1) return null
         val controlPointIds = refs().takeIf { it.size > degree } ?: return null
         val numberTuples = topLevelNumberTuples()
+        return toBSplineRecord(
+            degree = degree,
+            controlPointIds = controlPointIds,
+            numberTuples = numberTuples,
+            weights = null
+        )
+    }
+
+    private fun String.toComplexBSplineRecord(): BSplineRecord? {
+        val curveArgs = entityArgs("B_SPLINE_CURVE") ?: return null
+        val knotArgs = entityArgs("B_SPLINE_CURVE_WITH_KNOTS") ?: return null
+        val degree = curveArgs.topLevelNumbers().firstOrNull()?.toInt() ?: return null
+        if (degree < 1) return null
+        val controlPointIds = curveArgs.refs().takeIf { it.size > degree } ?: return null
+        val weights = entityArgs("RATIONAL_B_SPLINE_CURVE")
+            ?.deepNumberTuples()
+            ?.lastOrNull()
+        return knotArgs.toBSplineRecord(
+            degree = degree,
+            controlPointIds = controlPointIds,
+            numberTuples = knotArgs.topLevelNumberTuples(),
+            weights = weights
+        )
+    }
+
+    private fun String.toBSplineRecord(
+        degree: Int,
+        controlPointIds: List<Int>,
+        numberTuples: List<List<Double>>,
+        weights: List<Double>?
+    ): BSplineRecord? {
         val multiplicities = numberTuples.getOrNull(numberTuples.size - 2)
             ?.map { it.toInt() }
             ?: return null
         val knotValues = numberTuples.lastOrNull() ?: return null
         if (multiplicities.size != knotValues.size || multiplicities.any { it <= 0 }) return null
+        if (weights != null && (weights.size != controlPointIds.size || weights.any { it <= 0.0 })) return null
         val expandedKnots = ArrayList<Double>()
         knotValues.forEachIndexed { index, knot ->
             repeat(multiplicities[index]) {
@@ -622,7 +719,8 @@ class StepLiteParser(
         return BSplineRecord(
             degree = degree,
             controlPointIds = controlPointIds,
-            knots = expandedKnots
+            knots = expandedKnots,
+            weights = weights
         )
     }
 
@@ -881,6 +979,76 @@ private fun String.topLevelNumberTuples(): List<List<Double>> {
         index += 1
     }
     return tuples
+}
+
+private fun String.deepNumberTuples(): List<List<Double>> {
+    val tuples = ArrayList<List<Double>>()
+    val tupleStarts = ArrayList<Int>()
+    var index = 0
+    while (index < length) {
+        when (this[index]) {
+            '\'' -> index = skipStepString(index)
+            '(' -> tupleStarts += index + 1
+            ')' -> {
+                val tupleStart = tupleStarts.removeLastOrNull()
+                if (tupleStart != null) {
+                    val values = substring(tupleStart, index)
+                        .split(',')
+                        .map { it.trim() }
+                        .takeIf { tokens -> tokens.all { token -> token.toStepDoubleOrNull() != null } }
+                        ?.mapNotNull { it.toStepDoubleOrNull() }
+                    if (!values.isNullOrEmpty()) tuples += values
+                }
+            }
+        }
+        index += 1
+    }
+    return tuples
+}
+
+private fun String.entityArgs(entityName: String): String? {
+    var index = 0
+    while (index < length) {
+        if (this[index] == '\'') {
+            index = skipStepString(index) + 1
+            continue
+        }
+        if (matchesEntityNameAt(index, entityName)) {
+            var open = index + entityName.length
+            while (open < length && this[open].isWhitespace()) open += 1
+            val close = matchingParenEnd(open) ?: return null
+            return substring(open + 1, close)
+        }
+        index += 1
+    }
+    return null
+}
+
+private fun String.matchesEntityNameAt(index: Int, entityName: String): Boolean {
+    if (!regionMatches(index, entityName, 0, entityName.length, ignoreCase = true)) return false
+    val previous = getOrNull(index - 1)
+    if (previous != null && (previous.isLetterOrDigit() || previous == '_')) return false
+    var cursor = index + entityName.length
+    while (cursor < length && this[cursor].isWhitespace()) cursor += 1
+    return getOrNull(cursor) == '('
+}
+
+private fun String.matchingParenEnd(open: Int): Int? {
+    if (getOrNull(open) != '(') return null
+    var depth = 0
+    var index = open
+    while (index < length) {
+        when (this[index]) {
+            '\'' -> index = skipStepString(index)
+            '(' -> depth += 1
+            ')' -> {
+                depth -= 1
+                if (depth == 0) return index
+            }
+        }
+        index += 1
+    }
+    return null
 }
 
 private fun String.lastTopLevelLogical(): Boolean? {
