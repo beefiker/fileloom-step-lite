@@ -745,6 +745,25 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesSingleSegmentCompositeCurvesAsLightweightPolylines() {
+        val result = StepLiteParser().parse(SingleSegmentCompositeCurveStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val composite = document.entities.single()
+        assertTrue(composite is StepLiteEntity.Polyline)
+        composite as StepLiteEntity.Polyline
+        assertEquals(2, composite.points.size)
+        assertClose(0.0, composite.points.first().x)
+        assertClose(0.0, composite.points.first().y)
+        assertClose(4.0, composite.points.last().x)
+        assertClose(0.0, composite.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun rejectsDiscontinuousStandaloneCompositeCurvesInsteadOfJoiningWithJump() {
         val result = StepLiteParser().parse(DiscontinuousStandaloneCompositeCurveStep.byteInputStream())
 
@@ -2364,6 +2383,29 @@ class StepLiteParserTest {
             #30=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#20);
             #31=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#21);
             #40=COMPOSITE_CURVE('',(#30,#31),.F.);
+            #50=GEOMETRIC_CURVE_SET('',(#40));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val SingleSegmentCompositeCurveStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom single segment composite curve STEP fixture'),'2;1');
+            FILE_NAME('single-segment-composite-curve.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Single Segment Composite Curve Fixture','Single Segment Composite Curve Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=DIRECTION('',(1.,0.,0.));
+            #12=VECTOR('',#11,4.);
+            #20=LINE('',#10,#12);
+            #30=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#20);
+            #40=COMPOSITE_CURVE('',(#30),.F.);
             #50=GEOMETRIC_CURVE_SET('',(#40));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;

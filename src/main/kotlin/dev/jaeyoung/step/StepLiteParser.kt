@@ -2370,7 +2370,7 @@ class StepLiteParser(
     }
 
     private fun String.toCompositeCurveRecord(): List<Int>? {
-        return refs().takeIf { it.size >= 2 }
+        return refs().takeIf { it.isNotEmpty() }
     }
 
     private fun String.toOrientedEdgeRecord(): OrientedEdgeRecord? {
