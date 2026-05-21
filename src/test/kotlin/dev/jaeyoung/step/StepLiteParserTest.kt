@@ -513,6 +513,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsOutOfDomainBSplineParameterTrimsInsteadOfClampingToFullCurve() {
+        val result = StepLiteParser().parse(OutOfDomainBSplineParameterTrimStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun appliesParameterTrimmedBSplineWrappersWhenParsingEdgeCurves() {
         val result = StepLiteParser().parse(EdgeParameterTrimmedBSplineStep.byteInputStream())
 
@@ -2259,6 +2269,28 @@ class StepLiteParserTest {
             #21=VERTEX_POINT('',#13);
             #30=B_SPLINE_CURVE_WITH_KNOTS('',2,(#10,#11,#12,#13),.UNSPECIFIED.,.F.,.F.,(3,1,3),(0.,0.,1.),.UNSPECIFIED.);
             #31=EDGE_CURVE('',#20,#21,#30,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val OutOfDomainBSplineParameterTrimStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom out-of-domain B-spline parameter trim STEP fixture'),'2;1');
+            FILE_NAME('out-of-domain-bspline-trim.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Out-of-Domain B-spline Parameter Trim Fixture','Out-of-Domain B-spline Parameter Trim Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(5.,10.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=B_SPLINE_CURVE_WITH_KNOTS('',2,(#10,#11,#12),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);
+            #30=TRIMMED_CURVE('',#20,(PARAMETER_VALUE(-0.5)),(PARAMETER_VALUE(1.5)),.T.,.PARAMETER.);
+            #40=GEOMETRIC_CURVE_SET('',(#30));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

@@ -1987,8 +1987,9 @@ class StepLiteParser(
         val domainStart = knots[degree]
         val domainEnd = knots[knots.size - degree - 1]
         if (domainEnd <= domainStart) return null
-        val start = (startParameter ?: domainStart).coerceIn(domainStart, domainEnd)
-        val end = (endParameter ?: domainEnd).coerceIn(domainStart, domainEnd)
+        val start = startParameter ?: domainStart
+        val end = endParameter ?: domainEnd
+        if (start < domainStart || start > domainEnd || end < domainStart || end > domainEnd) return null
         if (abs(end - start) <= CoordinateTolerance) return null
 
         return List(SplineSegments + 1) { index ->
