@@ -747,10 +747,12 @@ class StepLiteParser(
                 )
                 ?.toPathPoints()
                 ?: return null
-            if (merged.isNotEmpty() && merged.last().samePositionAs(segment.first())) {
+            if (merged.isEmpty()) {
+                merged += segment
+            } else if (merged.last().samePositionAs(segment.first())) {
                 merged += segment.drop(1)
             } else {
-                merged += segment
+                return null
             }
         }
         val loopPoints = merged.dedupeConsecutivePoints().takeIf { it.size >= 3 } ?: return null
