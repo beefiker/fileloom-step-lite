@@ -235,6 +235,10 @@ class StepLiteParser(
                     val spline = record.args.toBSplineRecord()
                     if (spline != null) splines[record.id] = spline
                 }
+                "B_SPLINE_CURVE" -> {
+                    val spline = record.args.toSimpleBSplineRecord()
+                    if (spline != null) splines[record.id] = spline
+                }
                 "TRIMMED_CURVE" -> {
                     val trimmedCurve = record.args.toTrimmedCurveRecord()
                     if (trimmedCurve != null) curveWrappers[record.id] = trimmedCurve
@@ -1434,6 +1438,17 @@ class StepLiteParser(
         )
     }
 
+    private fun String.toSimpleBSplineRecord(): BSplineRecord? {
+        val degree = topLevelNumbers().firstOrNull()?.toInt() ?: return null
+        if (degree < 1) return null
+        val controlPointIds = refs().takeIf { it.size > degree } ?: return null
+        return toQuasiUniformBSplineRecord(
+            degree = degree,
+            controlPointIds = controlPointIds,
+            weights = null
+        )
+    }
+
     private fun String.toComplexBSplineRecord(): BSplineRecord? {
         val curveArgs = entityArgs("B_SPLINE_CURVE") ?: return null
         val degree = curveArgs.topLevelNumbers().firstOrNull()?.toInt() ?: return null
@@ -1464,7 +1479,13 @@ class StepLiteParser(
                 weights = weights
             )
         }
-        if (knotArgs == null) return null
+        if (knotArgs == null) {
+            return toQuasiUniformBSplineRecord(
+                degree = degree,
+                controlPointIds = controlPointIds,
+                weights = weights
+            )
+        }
         return knotArgs.toBSplineRecord(
             degree = degree,
             controlPointIds = controlPointIds,

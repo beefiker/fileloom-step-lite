@@ -784,6 +784,26 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesSimpleBSplineCurvesWithEndpointPreservingFallback() {
+        val result = StepLiteParser().parse(SimpleBSplineStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val spline = document.entities.single()
+        assertTrue(spline is StepLiteEntity.Polyline)
+        spline as StepLiteEntity.Polyline
+        assertTrue(spline.points.size > 8)
+        assertClose(0.0, spline.points.first().x)
+        assertClose(0.0, spline.points.first().y)
+        assertClose(12.0, spline.points.last().x)
+        assertClose(0.0, spline.points.last().y)
+        assertTrue(spline.points.maxOf { it.y } > 4.0)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesComplexRationalBSplineRecordsAsLightweightPolylines() {
         val result = StepLiteParser().parse(ComplexRationalBSplineStep.byteInputStream())
 
@@ -1854,6 +1874,28 @@ class StepLiteParserTest {
             #11=DIRECTION('',(0.,2.,0.));
             #12=VECTOR('',#11,6.);
             #20=LINE('',#10,#12);
+            #30=GEOMETRIC_CURVE_SET('',(#20));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val SimpleBSplineStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom simple B-spline STEP fixture'),'2;1');
+            FILE_NAME('simple-bspline.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Simple B-spline Fixture','Simple B-spline Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(3.,8.,0.));
+            #12=CARTESIAN_POINT('',(9.,8.,0.));
+            #13=CARTESIAN_POINT('',(12.,0.,0.));
+            #20=B_SPLINE_CURVE('',2,(#10,#11,#12,#13),.UNSPECIFIED.,.F.,.F.);
             #30=GEOMETRIC_CURVE_SET('',(#20));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
