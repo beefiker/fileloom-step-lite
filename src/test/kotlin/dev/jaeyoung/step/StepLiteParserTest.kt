@@ -250,6 +250,29 @@ class StepLiteParserTest {
         assertEquals(0, document.unsupportedEntityCount)
     }
 
+    @Test
+    fun samplesTiltedCirclePlacementsAsLightweightPolylines() {
+        val result = StepLiteParser().parse(TiltedCircleStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val circle = document.entities.single()
+        assertTrue(circle is StepLiteEntity.Polyline)
+        circle as StepLiteEntity.Polyline
+        assertTrue(circle.points.size > 8)
+        assertClose(14.0, circle.points.first().x)
+        assertClose(10.0, circle.points.first().y)
+        assertClose(circle.points.first().x, circle.points.last().x)
+        assertClose(circle.points.first().y, circle.points.last().y)
+        assertClose(6.0, circle.points.minOf { it.x })
+        assertClose(14.0, circle.points.maxOf { it.x })
+        assertClose(10.0, circle.points.minOf { it.y })
+        assertClose(10.0, circle.points.maxOf { it.y })
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
     private fun assertClose(expected: Double, actual: Double) {
         assertEquals(expected, actual, 0.000001)
     }
@@ -565,6 +588,30 @@ class StepLiteParserTest {
             #22=VERTEX_POINT('',#20);
             #23=VERTEX_POINT('',#21);
             #24=EDGE_CURVE('',#22,#23,#14,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val TiltedCircleStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom tilted circle STEP fixture'),'2;1');
+            FILE_NAME('tilted-circle.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Tilted Circle Fixture','Tilted Circle Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(10.,10.,0.));
+            #11=DIRECTION('',(0.,1.,0.));
+            #12=DIRECTION('',(1.,0.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #14=CIRCLE('',#13,4.);
+            #20=CARTESIAN_POINT('',(14.,10.,0.));
+            #21=VERTEX_POINT('',#20);
+            #22=EDGE_CURVE('',#21,#21,#14,.T.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

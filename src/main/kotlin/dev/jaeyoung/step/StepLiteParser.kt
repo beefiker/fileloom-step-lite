@@ -333,12 +333,24 @@ class StepLiteParser(
         polylineCurves: Map<Int, List<Int>>
     ): StepLiteEntity? {
         val circle = circles[curveId]
-        val center = circle
-            ?.let { placements[it.placementId] }
-            ?.let { points[it.locationPointId] }
-        if (circle != null && center != null) {
+        val circlePlacement = circle?.let { placements[it.placementId] }
+        val center = circlePlacement?.let { points[it.locationPointId] }
+        if (circle != null && circlePlacement != null && center != null) {
+            val circleBasis = circlePlacement.toBasis(directions)
             val arcStart = if (sameSense) start else end
             val arcEnd = if (sameSense) end else start
+            if (!circleBasis.isFlatInPreviewPlane()) {
+                return StepLiteEntity.Polyline(
+                    points = circle.toPolylinePoints(
+                        center = center,
+                        basis = circleBasis,
+                        start = arcStart,
+                        end = arcEnd,
+                        closed = start.samePositionAs(end)
+                    ),
+                    sourceId = sourceId
+                )
+            }
             return if (start.samePositionAs(end)) {
                 StepLiteEntity.Circle(
                     center = center,
@@ -410,12 +422,53 @@ class StepLiteParser(
         }
     }
 
+    private fun CircleRecord.toPolylinePoints(
+        center: StepLitePoint,
+        basis: PlacementBasis,
+        start: StepLitePoint,
+        end: StepLitePoint,
+        closed: Boolean
+    ): List<StepLitePoint> {
+        return samplePlacedConic(
+            center = center,
+            basis = basis,
+            majorRadius = radius,
+            minorRadius = radius,
+            start = start,
+            end = end,
+            closed = closed,
+            segmentCount = CircleSegments
+        )
+    }
+
     private fun EllipseRecord.toPolylinePoints(
         center: StepLitePoint,
         basis: PlacementBasis,
         start: StepLitePoint,
         end: StepLitePoint,
         closed: Boolean
+    ): List<StepLitePoint> {
+        return samplePlacedConic(
+            center = center,
+            basis = basis,
+            majorRadius = majorRadius,
+            minorRadius = minorRadius,
+            start = start,
+            end = end,
+            closed = closed,
+            segmentCount = EllipseSegments
+        )
+    }
+
+    private fun samplePlacedConic(
+        center: StepLitePoint,
+        basis: PlacementBasis,
+        majorRadius: Double,
+        minorRadius: Double,
+        start: StepLitePoint,
+        end: StepLitePoint,
+        closed: Boolean,
+        segmentCount: Int
     ): List<StepLitePoint> {
         val startAngle = start.ellipseAngleFrom(center, basis, majorRadius, minorRadius)
         val sweep = if (closed) {
@@ -427,9 +480,9 @@ class StepLiteParser(
             )
         }
         val segments = if (closed) {
-            EllipseSegments
+            segmentCount
         } else {
-            max(2, ceil(sweep / (2.0 * PI) * EllipseSegments).toInt())
+            max(2, ceil(sweep / (2.0 * PI) * segmentCount).toInt())
         }
         return List(segments + 1) { index ->
             val angle = startAngle + sweep * index / segments
@@ -542,6 +595,7 @@ class StepLiteParser(
         private const val DefaultMaxBytes = 16 * 1024 * 1024
         private const val DefaultMaxRecords = 250_000
         private const val DefaultMaxEntities = 100_000
+        private const val CircleSegments = 32
         private const val EllipseSegments = 32
         private const val SplineSegments = 32
         private val DefaultXAxis = DirectionRecord(1.0, 0.0, 0.0)
@@ -885,6 +939,11 @@ private fun DirectionRecord.normalizedOrNull(): DirectionRecord? {
     val length = sqrt(x * x + y * y + z * z)
     if (length <= CoordinateTolerance) return null
     return scale(1.0 / length)
+}
+
+private fun PlacementBasis.isFlatInPreviewPlane(): Boolean {
+    return kotlin.math.abs(xAxis.z) <= CoordinateTolerance &&
+        kotlin.math.abs(yAxis.z) <= CoordinateTolerance
 }
 
 private fun StepLitePoint.ellipseAngleFrom(

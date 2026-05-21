@@ -12,7 +12,7 @@ This parser is intentionally not an OpenCascade binding and does not bundle WASM
 - Emits lightweight line, polyline, circle, arc, sampled ellipse, and sampled B-spline wireframes with 3D bounds for preview adapters
 - Counts unsupported curve records instead of flattening them into misleading straight lines
 - Honors `EDGE_CURVE` same-sense direction for circular arcs, polylines, sampled ellipses, and sampled B-splines
-- Applies `AXIS2_PLACEMENT_3D` direction/ref-direction axes when sampling ellipses
+- Applies `AXIS2_PLACEMENT_3D` direction/ref-direction axes when sampling ellipses and non-XY circles
 - Has no runtime dependencies beyond the Kotlin/JDK standard libraries
 - Publishes as `dev.jaeyoung:fileloom-step-lite`
 
