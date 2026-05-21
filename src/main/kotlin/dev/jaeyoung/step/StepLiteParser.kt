@@ -251,6 +251,21 @@ class StepLiteParser(
                     if (surfaceCurve != null) curveWrappers[record.id] = surfaceCurve
                     val seamCurve = record.args.entityArgs("SEAM_CURVE")?.toBasisCurveWrapperRecord()
                     if (seamCurve != null) curveWrappers[record.id] = seamCurve
+                    val edgeCurveArgs = record.args.entityArgs("EDGE_CURVE")
+                    if (edgeCurveArgs != null) {
+                        val refs = edgeCurveArgs.refs()
+                        if (refs.size >= 3) {
+                            edges += EdgeCurveRecord(
+                                sourceId = record.id,
+                                startVertexId = refs[0],
+                                endVertexId = refs[1],
+                                curveId = refs[2],
+                                sameSense = edgeCurveArgs.lastTopLevelLogical() ?: true
+                            )
+                        } else {
+                            unsupported += 1
+                        }
+                    }
                 }
                 "EDGE_CURVE" -> {
                     val refs = record.args.refs()
