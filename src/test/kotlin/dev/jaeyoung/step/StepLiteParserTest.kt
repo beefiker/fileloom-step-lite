@@ -697,6 +697,18 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun leavesOpenEdgeLoopsAsRawEdgesInsteadOfAutoClosingThem() {
+        val result = StepLiteParser().parse(OpenEdgeLoopStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(4, document.entities.size)
+        assertTrue(document.entities.all { it is StepLiteEntity.Line })
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun emitsStandaloneBoundedCurvesWithoutEdgeRecords() {
         val result = StepLiteParser().parse(StandaloneBoundedCurvesStep.byteInputStream())
 
@@ -1901,6 +1913,16 @@ class StepLiteParserTest {
             .replace(
                 "#60=EDGE_LOOP('',(#50,#51,#52,#53));",
                 "#60=EDGE_LOOP('',(#50,#52,#51,#53));"
+            )
+
+        private val OpenEdgeLoopStep = OrientedEdgeLoopStep
+            .replace(
+                "FILE_NAME('oriented-edge-loop.stp'",
+                "FILE_NAME('open-edge-loop.stp'"
+            )
+            .replace(
+                "#60=EDGE_LOOP('',(#50,#51,#52,#53));",
+                "#60=EDGE_LOOP('',(#50,#51,#52));"
             )
 
         private val StandaloneBoundedCurvesStep = """

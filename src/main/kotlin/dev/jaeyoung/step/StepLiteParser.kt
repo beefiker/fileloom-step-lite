@@ -756,13 +756,9 @@ class StepLiteParser(
             }
         }
         val loopPoints = merged.dedupeConsecutivePoints().takeIf { it.size >= 3 } ?: return null
-        val closedLoopPoints = if (loopPoints.first().samePositionAs(loopPoints.last())) {
-            loopPoints
-        } else {
-            loopPoints + loopPoints.first()
-        }
+        if (!loopPoints.first().samePositionAs(loopPoints.last())) return null
         return StepLiteEntity.Polyline(
-            points = closedLoopPoints,
+            points = loopPoints,
             sourceId = sourceId
         )
     }
