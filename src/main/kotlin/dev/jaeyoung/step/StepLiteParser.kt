@@ -152,6 +152,8 @@ class StepLiteParser(
         val hyperbolas = linkedMapOf<Int, HyperbolaRecord>()
         val splines = linkedMapOf<Int, BSplineRecord>()
         val curveWrappers = linkedMapOf<Int, CurveWrapperRecord>()
+        val compositeSegments = linkedMapOf<Int, CompositeCurveSegmentRecord>()
+        val compositeCurves = linkedMapOf<Int, List<Int>>()
         val lineCurves = linkedSetOf<Int>()
         val polylineCurves = linkedMapOf<Int, List<Int>>()
         val edges = ArrayList<EdgeCurveRecord>()
@@ -228,6 +230,14 @@ class StepLiteParser(
                     val wrappedCurve = record.args.toBasisCurveWrapperRecord()
                     if (wrappedCurve != null) curveWrappers[record.id] = wrappedCurve
                 }
+                "COMPOSITE_CURVE_SEGMENT" -> {
+                    val segment = record.args.toCompositeCurveSegmentRecord()
+                    if (segment != null) compositeSegments[record.id] = segment
+                }
+                "COMPOSITE_CURVE" -> {
+                    val segmentIds = record.args.toCompositeCurveRecord()
+                    if (segmentIds != null) compositeCurves[record.id] = segmentIds
+                }
                 "COMPLEX" -> {
                     unit = maxOf(unit, record.args.resolveUnit())
                     val direction = record.args.entityArgs("DIRECTION")
@@ -267,6 +277,11 @@ class StepLiteParser(
                     if (surfaceCurve != null) curveWrappers[record.id] = surfaceCurve
                     val seamCurve = record.args.entityArgs("SEAM_CURVE")?.toBasisCurveWrapperRecord()
                     if (seamCurve != null) curveWrappers[record.id] = seamCurve
+                    val compositeSegment = record.args.entityArgs("COMPOSITE_CURVE_SEGMENT")
+                        ?.toCompositeCurveSegmentRecord()
+                    if (compositeSegment != null) compositeSegments[record.id] = compositeSegment
+                    val compositeCurve = record.args.entityArgs("COMPOSITE_CURVE")?.toCompositeCurveRecord()
+                    if (compositeCurve != null) compositeCurves[record.id] = compositeCurve
                     val edgeCurveArgs = record.args.entityArgs("EDGE_CURVE")
                     if (edgeCurveArgs != null) {
                         val refs = edgeCurveArgs.refs()
@@ -322,6 +337,8 @@ class StepLiteParser(
                     hyperbolas = hyperbolas,
                     splines = splines,
                     curveWrappers = curveWrappers,
+                    compositeSegments = compositeSegments,
+                    compositeCurves = compositeCurves,
                     lineCurves = lineCurves,
                     polylineCurves = polylineCurves
                 )
@@ -408,6 +425,11 @@ class StepLiteParser(
         val sameSense: Boolean
     )
 
+    private data class CompositeCurveSegmentRecord(
+        val parentCurveId: Int,
+        val sameSense: Boolean
+    )
+
     private data class ResolvedCurveRecord(
         val curveId: Int,
         val sameSense: Boolean
@@ -425,6 +447,8 @@ class StepLiteParser(
         hyperbolas: Map<Int, HyperbolaRecord>,
         splines: Map<Int, BSplineRecord>,
         curveWrappers: Map<Int, CurveWrapperRecord>,
+        compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
+        compositeCurves: Map<Int, List<Int>>,
         lineCurves: Set<Int>,
         polylineCurves: Map<Int, List<Int>>
     ): StepLiteEntity? {
@@ -528,6 +552,25 @@ class StepLiteParser(
             }
         }
 
+        val compositeSegmentIds = compositeCurves[resolvedCurveId]
+        if (compositeSegmentIds != null) {
+            val compositePoints = compositeSegmentIds.toCompositeCurvePoints(
+                points = points,
+                splines = splines,
+                curveWrappers = curveWrappers,
+                compositeSegments = compositeSegments,
+                compositeCurves = compositeCurves,
+                polylineCurves = polylineCurves
+            )
+                ?.orientedBetween(
+                    start = if (resolvedSameSense) start else end,
+                    end = if (resolvedSameSense) end else start
+                )
+            return compositePoints?.let {
+                StepLiteEntity.Polyline(points = it, sourceId = sourceId)
+            }
+        }
+
         val polylinePointIds = polylineCurves[resolvedCurveId]
         if (polylinePointIds != null) {
             val polylinePoints = polylinePointIds.mapNotNull(points::get)
@@ -561,6 +604,93 @@ class StepLiteParser(
             sense = sense == wrapper.sameSense
         }
         return ResolvedCurveRecord(id, sense)
+    }
+
+    private fun List<Int>.toCompositeCurvePoints(
+        points: Map<Int, StepLitePoint>,
+        splines: Map<Int, BSplineRecord>,
+        curveWrappers: Map<Int, CurveWrapperRecord>,
+        compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
+        compositeCurves: Map<Int, List<Int>>,
+        polylineCurves: Map<Int, List<Int>>,
+        depth: Int = 0
+    ): List<StepLitePoint>? {
+        if (depth > MaxCurveWrapperDepth) return null
+        val merged = ArrayList<StepLitePoint>()
+        for (segmentId in this) {
+            val segment = compositeSegments[segmentId] ?: return null
+            val segmentPoints = segment.parentCurveId.toBoundedCurvePoints(
+                sameSense = segment.sameSense,
+                points = points,
+                splines = splines,
+                curveWrappers = curveWrappers,
+                compositeSegments = compositeSegments,
+                compositeCurves = compositeCurves,
+                polylineCurves = polylineCurves,
+                depth = depth + 1
+            ) ?: return null
+            if (merged.isNotEmpty() && merged.last().samePositionAs(segmentPoints.first())) {
+                merged += segmentPoints.drop(1)
+            } else {
+                merged += segmentPoints
+            }
+        }
+        return merged.dedupeConsecutivePoints().takeIf { it.size >= 2 }
+    }
+
+    private fun Int.toBoundedCurvePoints(
+        sameSense: Boolean,
+        points: Map<Int, StepLitePoint>,
+        splines: Map<Int, BSplineRecord>,
+        curveWrappers: Map<Int, CurveWrapperRecord>,
+        compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
+        compositeCurves: Map<Int, List<Int>>,
+        polylineCurves: Map<Int, List<Int>>,
+        depth: Int
+    ): List<StepLitePoint>? {
+        if (depth > MaxCurveWrapperDepth) return null
+
+        val wrapper = curveWrappers[this]
+        if (wrapper != null) {
+            return wrapper.basisCurveId.toBoundedCurvePoints(
+                sameSense = sameSense == wrapper.sameSense,
+                points = points,
+                splines = splines,
+                curveWrappers = curveWrappers,
+                compositeSegments = compositeSegments,
+                compositeCurves = compositeCurves,
+                polylineCurves = polylineCurves,
+                depth = depth + 1
+            )
+        }
+
+        val compositeSegmentIds = compositeCurves[this]
+        if (compositeSegmentIds != null) {
+            return compositeSegmentIds.toCompositeCurvePoints(
+                points = points,
+                splines = splines,
+                curveWrappers = curveWrappers,
+                compositeSegments = compositeSegments,
+                compositeCurves = compositeCurves,
+                polylineCurves = polylineCurves,
+                depth = depth + 1
+            )?.let { if (sameSense) it else it.asReversed() }
+        }
+
+        val polylinePointIds = polylineCurves[this]
+        if (polylinePointIds != null) {
+            return polylinePointIds.mapNotNull(points::get)
+                .takeIf { it.size >= 2 }
+                ?.let { if (sameSense) it else it.asReversed() }
+        }
+
+        val spline = splines[this]
+        if (spline != null) {
+            return spline.toPolylinePoints(points)
+                ?.let { if (sameSense) it else it.asReversed() }
+        }
+
+        return null
     }
 
     private fun CircleRecord.toPolylinePoints(
@@ -988,6 +1118,18 @@ class StepLiteParser(
             basisCurveId = basisCurveId,
             sameSense = true
         )
+    }
+
+    private fun String.toCompositeCurveSegmentRecord(): CompositeCurveSegmentRecord? {
+        val parentCurveId = refs().lastOrNull() ?: return null
+        return CompositeCurveSegmentRecord(
+            parentCurveId = parentCurveId,
+            sameSense = lastTopLevelLogical() ?: true
+        )
+    }
+
+    private fun String.toCompositeCurveRecord(): List<Int>? {
+        return refs().takeIf { it.size >= 2 }
     }
 
     private companion object {

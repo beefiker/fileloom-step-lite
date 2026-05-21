@@ -8,8 +8,8 @@ This parser is intentionally not an OpenCascade binding and does not bundle WASM
 
 - Reads ISO-10303-21 STEP/STP text files from an `InputStream`
 - Detects bounded input size before building in-memory model structures
-- Extracts `PRODUCT` name, unit hints, `CARTESIAN_POINT`, `VERTEX_POINT`, complex point/vertex records, `DIRECTION`, `AXIS2_PLACEMENT_3D`, complex direction/placement records, `LINE`, `POLYLINE`, complex line/polyline records, `CIRCLE`, `ELLIPSE`, `PARABOLA`, `HYPERBOLA`, complex conic records, `B_SPLINE_CURVE_WITH_KNOTS`, `BEZIER_CURVE`, `QUASI_UNIFORM_CURVE`, `UNIFORM_CURVE`, complex rational B-spline records, `TRIMMED_CURVE`, `SURFACE_CURVE`, `SEAM_CURVE`, complex curve wrapper records, `EDGE_CURVE`, and complex edge records
-- Emits lightweight line, polyline, circle, arc, sampled ellipse, sampled parabola, sampled hyperbola, sampled B-spline, sampled Bezier, and sampled rational B-spline wireframes with 3D bounds for preview adapters
+- Extracts `PRODUCT` name, unit hints, `CARTESIAN_POINT`, `VERTEX_POINT`, complex point/vertex records, `DIRECTION`, `AXIS2_PLACEMENT_3D`, complex direction/placement records, `LINE`, `POLYLINE`, complex line/polyline records, `CIRCLE`, `ELLIPSE`, `PARABOLA`, `HYPERBOLA`, complex conic records, `B_SPLINE_CURVE_WITH_KNOTS`, `BEZIER_CURVE`, `QUASI_UNIFORM_CURVE`, `UNIFORM_CURVE`, complex rational B-spline records, `TRIMMED_CURVE`, `SURFACE_CURVE`, `SEAM_CURVE`, `COMPOSITE_CURVE_SEGMENT`, `COMPOSITE_CURVE`, complex curve wrapper records, `EDGE_CURVE`, and complex edge records
+- Emits lightweight line, polyline, circle, arc, sampled ellipse, sampled parabola, sampled hyperbola, sampled B-spline, sampled Bezier, sampled rational B-spline, and bounded composite polyline/B-spline wireframes with 3D bounds for preview adapters
 - Counts unsupported curve records instead of flattening them into misleading straight lines
 - Honors `EDGE_CURVE` same-sense direction for circular arcs, polylines, sampled ellipses, and sampled B-splines
 - Resolves `TRIMMED_CURVE`, `SURFACE_CURVE`, and `SEAM_CURVE` wrappers to their lightweight basis curves before preview conversion

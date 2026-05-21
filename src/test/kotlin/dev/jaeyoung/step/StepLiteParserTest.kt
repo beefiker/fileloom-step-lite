@@ -573,6 +573,31 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesCompositeCurveSegmentsAsDedupedLightweightPolylines() {
+        val result = StepLiteParser().parse(CompositeCurveStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val composite = document.entities.single()
+        assertTrue(composite is StepLiteEntity.Polyline)
+        composite as StepLiteEntity.Polyline
+        assertEquals(5, composite.points.size)
+        assertClose(0.0, composite.points[0].x)
+        assertClose(0.0, composite.points[0].y)
+        assertClose(3.0, composite.points[1].x)
+        assertClose(3.0, composite.points[1].y)
+        assertClose(6.0, composite.points[2].x)
+        assertClose(0.0, composite.points[2].y)
+        assertClose(9.0, composite.points[3].x)
+        assertClose(3.0, composite.points[3].y)
+        assertClose(12.0, composite.points[4].x)
+        assertClose(0.0, composite.points[4].y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesComplexRationalBSplineRecordsAsLightweightPolylines() {
         val result = StepLiteParser().parse(ComplexRationalBSplineStep.byteInputStream())
 
@@ -1400,6 +1425,35 @@ class StepLiteParserTest {
             #96=REPRESENTATION_CONTEXT('','');
             #97=DIRECTION('',(0.,0.,1.));
             #98=DIRECTION('',(1.,0.,0.));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val CompositeCurveStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom composite curve STEP fixture'),'2;1');
+            FILE_NAME('composite-curve.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Composite Curve Fixture','Composite Curve Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(3.,3.,0.));
+            #12=CARTESIAN_POINT('',(6.,0.,0.));
+            #13=CARTESIAN_POINT('',(9.,3.,0.));
+            #14=CARTESIAN_POINT('',(12.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#14);
+            #30=POLYLINE('',(#10,#11,#12));
+            #31=POLYLINE('',(#14,#13,#12));
+            #40=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#30);
+            #41=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.F.,#31);
+            #50=COMPOSITE_CURVE('',(#40,#41),.F.);
+            #60=EDGE_CURVE('',#20,#21,#50,.T.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
