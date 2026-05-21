@@ -76,7 +76,14 @@ Publish a release candidate:
 
 For GitHub Actions, set repository secrets named `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_KEY`, and `SIGNING_PASSWORD`. Then either run the `Publish Maven` workflow with target `release` and `release_version`, or push a tag such as `v0.1.0`.
 
-Release artifacts published through the Central Portal OSSRH Staging API still need the Central Portal deployment flow after upload.
+Release artifacts published through the Central Portal OSSRH Staging API still need to be uploaded from the staging compatibility service into Central Portal. The GitHub workflow runs this step automatically after a release upload:
+
+```bash
+curl --fail-with-body \
+  --request POST \
+  --header "Authorization: Bearer $(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')" \
+  "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/dev.jaeyoung"
+```
 
 Publishing references:
 

@@ -98,4 +98,16 @@ class StepLitePublishingTest {
         assertTrue(workflowText.contains("SIGNING_PASSWORD"))
         assertTrue(workflowText.contains("release_version"))
     }
+
+    @Test
+    fun releaseWorkflowUploadsOssrhStagingRepositoryToCentralPortal() {
+        val workflowText = File(".github/workflows/publish.yml").readText()
+        val readme = File("README.md").readText()
+
+        assertTrue(workflowText.contains("MAVEN_CENTRAL_NAMESPACE: dev.jaeyoung"))
+        assertTrue(workflowText.contains("/manual/upload/defaultRepository/${'$'}{MAVEN_CENTRAL_NAMESPACE}"))
+        assertTrue(workflowText.contains("Authorization: Bearer"))
+        assertTrue(workflowText.contains("curl --fail-with-body"))
+        assertTrue(readme.contains("manual/upload/defaultRepository/dev.jaeyoung"))
+    }
 }
