@@ -176,6 +176,34 @@ class StepLiteParserTest {
         assertClose(0.0, polyline.points.last().y)
     }
 
+    @Test
+    fun parsesEllipticalEdgeCurvesAsLightweightPolylines() {
+        val result = StepLiteParser().parse(EllipseStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(2, document.entities.size)
+        val closedEllipse = document.entities[0]
+        assertTrue(closedEllipse is StepLiteEntity.Polyline)
+        closedEllipse as StepLiteEntity.Polyline
+        assertTrue(closedEllipse.points.size > 8)
+        assertClose(16.0, closedEllipse.points.first().x)
+        assertClose(10.0, closedEllipse.points.first().y)
+        assertClose(closedEllipse.points.first().x, closedEllipse.points.last().x)
+        assertClose(closedEllipse.points.first().y, closedEllipse.points.last().y)
+
+        val ellipseArc = document.entities[1]
+        assertTrue(ellipseArc is StepLiteEntity.Polyline)
+        ellipseArc as StepLiteEntity.Polyline
+        assertTrue(ellipseArc.points.size > 2)
+        assertClose(16.0, ellipseArc.points.first().x)
+        assertClose(10.0, ellipseArc.points.first().y)
+        assertClose(10.0, ellipseArc.points.last().x)
+        assertClose(13.0, ellipseArc.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
     private fun assertClose(expected: Double, actual: Double) {
         assertEquals(expected, actual, 0.000001)
     }
@@ -414,6 +442,33 @@ class StepLiteParserTest {
             #21=VERTEX_POINT('',#12);
             #30=POLYLINE('',(#10,#11,#12));
             #40=EDGE_CURVE('',#21,#20,#30,.F.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val EllipseStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom ellipse STEP fixture'),'2;1');
+            FILE_NAME('ellipse.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Ellipse Fixture','Ellipse Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(10.,10.,0.));
+            #11=DIRECTION('',(0.,0.,1.));
+            #12=DIRECTION('',(1.,0.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #14=ELLIPSE('',#13,6.,3.);
+            #20=CARTESIAN_POINT('',(16.,10.,0.));
+            #21=CARTESIAN_POINT('',(10.,13.,0.));
+            #22=VERTEX_POINT('',#20);
+            #23=VERTEX_POINT('',#21);
+            #24=EDGE_CURVE('',#22,#22,#14,.T.);
+            #25=EDGE_CURVE('',#22,#23,#14,.T.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

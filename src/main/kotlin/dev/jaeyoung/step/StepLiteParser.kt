@@ -3,9 +3,13 @@ package dev.jaeyoung.step
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
+import kotlin.math.PI
 import kotlin.math.atan2
+import kotlin.math.ceil
+import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sin
 
 enum class StepLiteUnit {
     MILLIMETER,
@@ -128,6 +132,7 @@ class StepLiteParser(
         val vertexPoints = linkedMapOf<Int, Int>()
         val placements = linkedMapOf<Int, AxisPlacementRecord>()
         val circles = linkedMapOf<Int, CircleRecord>()
+        val ellipses = linkedMapOf<Int, EllipseRecord>()
         val lineCurves = linkedSetOf<Int>()
         val polylineCurves = linkedMapOf<Int, List<Int>>()
         val edges = ArrayList<EdgeCurveRecord>()
@@ -168,6 +173,17 @@ class StepLiteParser(
                         circles[record.id] = CircleRecord(
                             placementId = placementId,
                             radius = radius
+                        )
+                    }
+                }
+                "ELLIPSE" -> {
+                    val placementId = record.args.refs().firstOrNull()
+                    val radii = record.args.topLevelNumbers().takeLast(2)
+                    if (placementId != null && radii.size == 2 && radii[0] > 0.0 && radii[1] > 0.0) {
+                        ellipses[record.id] = EllipseRecord(
+                            placementId = placementId,
+                            majorRadius = radii[0],
+                            minorRadius = radii[1]
                         )
                     }
                 }
@@ -213,6 +229,7 @@ class StepLiteParser(
                     points = points,
                     placements = placements,
                     circles = circles,
+                    ellipses = ellipses,
                     lineCurves = lineCurves,
                     polylineCurves = polylineCurves
                 )
@@ -261,12 +278,19 @@ class StepLiteParser(
         val radius: Double
     )
 
+    private data class EllipseRecord(
+        val placementId: Int,
+        val majorRadius: Double,
+        val minorRadius: Double
+    )
+
     private fun EdgeCurveRecord.toEntity(
         start: StepLitePoint,
         end: StepLitePoint,
         points: Map<Int, StepLitePoint>,
         placements: Map<Int, AxisPlacementRecord>,
         circles: Map<Int, CircleRecord>,
+        ellipses: Map<Int, EllipseRecord>,
         lineCurves: Set<Int>,
         polylineCurves: Map<Int, List<Int>>
     ): StepLiteEntity? {
@@ -294,6 +318,24 @@ class StepLiteParser(
             }
         }
 
+        val ellipse = ellipses[curveId]
+        val ellipseCenter = ellipse
+            ?.let { placements[it.placementId] }
+            ?.let { points[it.locationPointId] }
+        if (ellipse != null && ellipseCenter != null) {
+            val ellipseStart = if (sameSense) start else end
+            val ellipseEnd = if (sameSense) end else start
+            return StepLiteEntity.Polyline(
+                points = ellipse.toPolylinePoints(
+                    center = ellipseCenter,
+                    start = ellipseStart,
+                    end = ellipseEnd,
+                    closed = start.samePositionAs(end)
+                ),
+                sourceId = sourceId
+            )
+        }
+
         val polylinePointIds = polylineCurves[curveId]
         if (polylinePointIds != null) {
             val polylinePoints = polylinePointIds.mapNotNull(points::get)
@@ -318,11 +360,42 @@ class StepLiteParser(
         }
     }
 
+    private fun EllipseRecord.toPolylinePoints(
+        center: StepLitePoint,
+        start: StepLitePoint,
+        end: StepLitePoint,
+        closed: Boolean
+    ): List<StepLitePoint> {
+        val startAngle = start.ellipseAngleFrom(center, majorRadius, minorRadius)
+        val sweep = if (closed) {
+            2.0 * PI
+        } else {
+            positiveSweep(
+                from = startAngle,
+                to = end.ellipseAngleFrom(center, majorRadius, minorRadius)
+            )
+        }
+        val segments = if (closed) {
+            EllipseSegments
+        } else {
+            max(2, ceil(sweep / (2.0 * PI) * EllipseSegments).toInt())
+        }
+        return List(segments + 1) { index ->
+            val angle = startAngle + sweep * index / segments
+            StepLitePoint(
+                x = center.x + majorRadius * cos(angle),
+                y = center.y + minorRadius * sin(angle),
+                z = center.z
+            )
+        }
+    }
+
     private companion object {
         private const val StepHeader = "ISO-10303-21;"
         private const val DefaultMaxBytes = 16 * 1024 * 1024
         private const val DefaultMaxRecords = 250_000
         private const val DefaultMaxEntities = 100_000
+        private const val EllipseSegments = 32
     }
 }
 
@@ -582,6 +655,20 @@ private fun StepLitePoint.samePositionAs(other: StepLitePoint): Boolean {
 
 private fun StepLitePoint.angleFrom(center: StepLitePoint): Double {
     return atan2(y - center.y, x - center.x)
+}
+
+private fun StepLitePoint.ellipseAngleFrom(
+    center: StepLitePoint,
+    majorRadius: Double,
+    minorRadius: Double
+): Double {
+    return atan2((y - center.y) / minorRadius, (x - center.x) / majorRadius)
+}
+
+private fun positiveSweep(from: Double, to: Double): Double {
+    var sweep = to - from
+    while (sweep <= 0.0) sweep += 2.0 * PI
+    return sweep
 }
 
 private fun List<StepLitePoint>.orientedBetween(start: StepLitePoint, end: StepLitePoint): List<StepLitePoint> {
