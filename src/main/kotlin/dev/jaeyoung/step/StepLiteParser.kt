@@ -329,7 +329,7 @@ class StepLiteParser(
         val entities = ArrayList<StepLiteEntity>(
             min(
                 edges.size + circles.size + ellipses.size + polyLoops.size +
-                    polylineCurves.size + splines.size + compositeCurves.size,
+                    polylineCurves.size + splines.size + curveWrappers.size + compositeCurves.size,
                 maxEntities
             )
         )
@@ -387,6 +387,26 @@ class StepLiteParser(
                 points = points,
                 directions = directions,
                 placements = placements
+            )?.let(entities::add)
+        }
+        for ((sourceId, wrapper) in curveWrappers) {
+            if (entities.size >= maxEntities) break
+            if (sourceId in referencedCurveIds) continue
+            wrapper.toStandaloneEntity(
+                sourceId = sourceId,
+                points = points,
+                directions = directions,
+                placements = placements,
+                circles = circles,
+                ellipses = ellipses,
+                parabolas = parabolas,
+                hyperbolas = hyperbolas,
+                splines = splines,
+                curveWrappers = curveWrappers,
+                compositeSegments = compositeSegments,
+                compositeCurves = compositeCurves,
+                lineCurves = lineCurves,
+                polylineCurves = polylineCurves
             )?.let(entities::add)
         }
         for ((sourceId, pointIds) in polylineCurves) {
@@ -506,7 +526,9 @@ class StepLiteParser(
 
     private data class CurveWrapperRecord(
         val basisCurveId: Int,
-        val sameSense: Boolean
+        val sameSense: Boolean,
+        val trimStartPointId: Int? = null,
+        val trimEndPointId: Int? = null
     )
 
     private data class CompositeCurveSegmentRecord(
@@ -688,6 +710,62 @@ class StepLiteParser(
             sense = sense == wrapper.sameSense
         }
         return ResolvedCurveRecord(id, sense)
+    }
+
+    private fun CurveWrapperRecord.toStandaloneEntity(
+        sourceId: Int,
+        points: Map<Int, StepLitePoint>,
+        directions: Map<Int, DirectionRecord>,
+        placements: Map<Int, AxisPlacementRecord>,
+        circles: Map<Int, CircleRecord>,
+        ellipses: Map<Int, EllipseRecord>,
+        parabolas: Map<Int, ParabolaRecord>,
+        hyperbolas: Map<Int, HyperbolaRecord>,
+        splines: Map<Int, BSplineRecord>,
+        curveWrappers: Map<Int, CurveWrapperRecord>,
+        compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
+        compositeCurves: Map<Int, List<Int>>,
+        lineCurves: Set<Int>,
+        polylineCurves: Map<Int, List<Int>>
+    ): StepLiteEntity? {
+        val start = trimStartPointId?.let(points::get)
+        val end = trimEndPointId?.let(points::get)
+        if (start != null && end != null) {
+            return EdgeCurveRecord(
+                sourceId = sourceId,
+                startVertexId = 0,
+                endVertexId = 0,
+                curveId = sourceId,
+                sameSense = true
+            ).toEntity(
+                start = start,
+                end = end,
+                points = points,
+                directions = directions,
+                placements = placements,
+                circles = circles,
+                ellipses = ellipses,
+                parabolas = parabolas,
+                hyperbolas = hyperbolas,
+                splines = splines,
+                curveWrappers = curveWrappers,
+                compositeSegments = compositeSegments,
+                compositeCurves = compositeCurves,
+                lineCurves = lineCurves,
+                polylineCurves = polylineCurves
+            )
+        }
+
+        return basisCurveId.toBoundedCurvePoints(
+            sameSense = sameSense,
+            points = points,
+            splines = splines,
+            curveWrappers = curveWrappers,
+            compositeSegments = compositeSegments,
+            compositeCurves = compositeCurves,
+            polylineCurves = polylineCurves,
+            depth = 0
+        )?.let { StepLiteEntity.Polyline(points = it, sourceId = sourceId) }
     }
 
     private fun List<Int>.toCompositeCurvePoints(
@@ -1242,10 +1320,13 @@ class StepLiteParser(
     }
 
     private fun String.toTrimmedCurveRecord(): CurveWrapperRecord? {
-        val basisCurveId = refs().firstOrNull() ?: return null
+        val refs = refs()
+        val basisCurveId = refs.firstOrNull() ?: return null
         return CurveWrapperRecord(
             basisCurveId = basisCurveId,
-            sameSense = lastTopLevelLogical() ?: true
+            sameSense = lastTopLevelLogical() ?: true,
+            trimStartPointId = refs.getOrNull(1),
+            trimEndPointId = refs.getOrNull(2)
         )
     }
 

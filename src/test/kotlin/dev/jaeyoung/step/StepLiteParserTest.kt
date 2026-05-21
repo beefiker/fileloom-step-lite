@@ -678,6 +678,25 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun emitsStandaloneTrimmedCurvesWithoutEdgeRecords() {
+        val result = StepLiteParser().parse(StandaloneTrimmedCurveStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val arc = document.entities.single()
+        assertTrue(arc is StepLiteEntity.Arc)
+        arc as StepLiteEntity.Arc
+        assertClose(5.0, arc.center.x)
+        assertClose(5.0, arc.center.y)
+        assertClose(2.5, arc.radius)
+        assertClose(0.0, arc.startAngleRadians)
+        assertClose(PI / 2.0, arc.endAngleRadians)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesComplexRationalBSplineRecordsAsLightweightPolylines() {
         val result = StepLiteParser().parse(ComplexRationalBSplineStep.byteInputStream())
 
@@ -1611,6 +1630,31 @@ class StepLiteParserTest {
             #20=CIRCLE('',#14,3.);
             #21=ELLIPSE('',#15,6.,3.);
             #30=GEOMETRIC_CURVE_SET('',(#20,#21));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StandaloneTrimmedCurveStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom standalone trimmed curve STEP fixture'),'2;1');
+            FILE_NAME('standalone-trimmed-curve.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Standalone Trimmed Curve Fixture','Standalone Trimmed Curve Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(5.,5.,0.));
+            #11=DIRECTION('',(0.,0.,1.));
+            #12=DIRECTION('',(1.,0.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #14=CIRCLE('',#13,2.5);
+            #20=CARTESIAN_POINT('',(7.5,5.,0.));
+            #21=CARTESIAN_POINT('',(5.,7.5,0.));
+            #30=TRIMMED_CURVE('',#14,(#20),(#21),.T.,.CARTESIAN.);
+            #40=GEOMETRIC_CURVE_SET('',(#30));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
