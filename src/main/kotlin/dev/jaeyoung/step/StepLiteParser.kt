@@ -133,6 +133,7 @@ class StepLiteParser(
         val placements = linkedMapOf<Int, AxisPlacementRecord>()
         val circles = linkedMapOf<Int, CircleRecord>()
         val ellipses = linkedMapOf<Int, EllipseRecord>()
+        val splines = linkedMapOf<Int, BSplineRecord>()
         val lineCurves = linkedSetOf<Int>()
         val polylineCurves = linkedMapOf<Int, List<Int>>()
         val edges = ArrayList<EdgeCurveRecord>()
@@ -196,6 +197,10 @@ class StepLiteParser(
                         polylineCurves[record.id] = pointRefs
                     }
                 }
+                "B_SPLINE_CURVE_WITH_KNOTS" -> {
+                    val spline = record.args.toBSplineRecord()
+                    if (spline != null) splines[record.id] = spline
+                }
                 "EDGE_CURVE" -> {
                     val refs = record.args.refs()
                     if (refs.size >= 3) {
@@ -230,6 +235,7 @@ class StepLiteParser(
                     placements = placements,
                     circles = circles,
                     ellipses = ellipses,
+                    splines = splines,
                     lineCurves = lineCurves,
                     polylineCurves = polylineCurves
                 )
@@ -284,6 +290,12 @@ class StepLiteParser(
         val minorRadius: Double
     )
 
+    private data class BSplineRecord(
+        val degree: Int,
+        val controlPointIds: List<Int>,
+        val knots: List<Double>
+    )
+
     private fun EdgeCurveRecord.toEntity(
         start: StepLitePoint,
         end: StepLitePoint,
@@ -291,6 +303,7 @@ class StepLiteParser(
         placements: Map<Int, AxisPlacementRecord>,
         circles: Map<Int, CircleRecord>,
         ellipses: Map<Int, EllipseRecord>,
+        splines: Map<Int, BSplineRecord>,
         lineCurves: Set<Int>,
         polylineCurves: Map<Int, List<Int>>
     ): StepLiteEntity? {
@@ -334,6 +347,18 @@ class StepLiteParser(
                 ),
                 sourceId = sourceId
             )
+        }
+
+        val spline = splines[curveId]
+        if (spline != null) {
+            val splinePoints = spline.toPolylinePoints(points)
+                ?.orientedBetween(
+                    start = if (sameSense) start else end,
+                    end = if (sameSense) end else start
+                )
+            return splinePoints?.let {
+                StepLiteEntity.Polyline(points = it, sourceId = sourceId)
+            }
         }
 
         val polylinePointIds = polylineCurves[curveId]
@@ -390,12 +415,88 @@ class StepLiteParser(
         }
     }
 
+    private fun BSplineRecord.toPolylinePoints(points: Map<Int, StepLitePoint>): List<StepLitePoint>? {
+        val controlPoints = controlPointIds.mapNotNull(points::get)
+        if (controlPoints.size != controlPointIds.size || controlPoints.size <= degree || knots.size != controlPoints.size + degree + 1) {
+            return null
+        }
+
+        val start = knots[degree]
+        val end = knots[knots.size - degree - 1]
+        if (end <= start) return null
+
+        return List(SplineSegments + 1) { index ->
+            val t = if (index == SplineSegments) end else start + (end - start) * index / SplineSegments
+            evaluateBSpline(t, controlPoints)
+        }.dedupeConsecutivePoints()
+            .takeIf { it.size >= 2 }
+    }
+
+    private fun BSplineRecord.evaluateBSpline(t: Double, controlPoints: List<StepLitePoint>): StepLitePoint {
+        val span = findSplineSpan(t, controlPoints.size)
+        val work = ArrayList<StepLitePoint>(degree + 1)
+        for (offset in 0..degree) {
+            work += controlPoints[span - degree + offset]
+        }
+        for (level in 1..degree) {
+            for (offset in degree downTo level) {
+                val knotIndex = span - degree + offset
+                val denominator = knots[knotIndex + degree - level + 1] - knots[knotIndex]
+                val alpha = if (denominator == 0.0) 0.0 else (t - knots[knotIndex]) / denominator
+                work[offset] = work[offset - 1].lerp(work[offset], alpha)
+            }
+        }
+        return work[degree]
+    }
+
+    private fun BSplineRecord.findSplineSpan(t: Double, controlPointCount: Int): Int {
+        val lastSpan = controlPointCount - 1
+        if (t >= knots[lastSpan + 1]) return lastSpan
+        var low = degree
+        var high = controlPointCount
+        var middle = (low + high) / 2
+        while (t < knots[middle] || t >= knots[middle + 1]) {
+            if (t < knots[middle]) {
+                high = middle
+            } else {
+                low = middle
+            }
+            middle = (low + high) / 2
+        }
+        return middle
+    }
+
+    private fun String.toBSplineRecord(): BSplineRecord? {
+        val degree = topLevelNumbers().firstOrNull()?.toInt() ?: return null
+        if (degree < 1) return null
+        val controlPointIds = refs().takeIf { it.size > degree } ?: return null
+        val numberTuples = topLevelNumberTuples()
+        val multiplicities = numberTuples.getOrNull(numberTuples.size - 2)
+            ?.map { it.toInt() }
+            ?: return null
+        val knotValues = numberTuples.lastOrNull() ?: return null
+        if (multiplicities.size != knotValues.size || multiplicities.any { it <= 0 }) return null
+        val expandedKnots = ArrayList<Double>()
+        knotValues.forEachIndexed { index, knot ->
+            repeat(multiplicities[index]) {
+                expandedKnots += knot
+            }
+        }
+        if (expandedKnots.size != controlPointIds.size + degree + 1) return null
+        return BSplineRecord(
+            degree = degree,
+            controlPointIds = controlPointIds,
+            knots = expandedKnots
+        )
+    }
+
     private companion object {
         private const val StepHeader = "ISO-10303-21;"
         private const val DefaultMaxBytes = 16 * 1024 * 1024
         private const val DefaultMaxRecords = 250_000
         private const val DefaultMaxEntities = 100_000
         private const val EllipseSegments = 32
+        private const val SplineSegments = 32
     }
 }
 
@@ -596,6 +697,35 @@ private fun String.topLevelNumbers(): List<Double> {
     return values
 }
 
+private fun String.topLevelNumberTuples(): List<List<Double>> {
+    val tuples = ArrayList<List<Double>>()
+    var depth = 0
+    var tupleStart = -1
+    var index = 0
+    while (index < length) {
+        when (this[index]) {
+            '\'' -> index = skipStepString(index)
+            '(' -> {
+                depth += 1
+                if (depth == 1) tupleStart = index + 1
+            }
+            ')' -> {
+                if (depth == 1 && tupleStart >= 0) {
+                    val values = substring(tupleStart, index)
+                        .split(',')
+                        .map { it.trim() }
+                        .takeIf { tokens -> tokens.all { token -> token.toStepDoubleOrNull() != null } }
+                        ?.mapNotNull { it.toStepDoubleOrNull() }
+                    if (!values.isNullOrEmpty()) tuples += values
+                }
+                depth -= 1
+            }
+        }
+        index += 1
+    }
+    return tuples
+}
+
 private fun String.lastTopLevelLogical(): Boolean? {
     var depth = 0
     var logical: Boolean? = null
@@ -653,6 +783,14 @@ private fun StepLitePoint.samePositionAs(other: StepLitePoint): Boolean {
         kotlin.math.abs(z - other.z) <= CoordinateTolerance
 }
 
+private fun StepLitePoint.lerp(other: StepLitePoint, alpha: Double): StepLitePoint {
+    return StepLitePoint(
+        x = x + (other.x - x) * alpha,
+        y = y + (other.y - y) * alpha,
+        z = z + (other.z - z) * alpha
+    )
+}
+
 private fun StepLitePoint.angleFrom(center: StepLitePoint): Double {
     return atan2(y - center.y, x - center.x)
 }
@@ -680,6 +818,16 @@ private fun List<StepLitePoint>.orientedBetween(start: StepLitePoint, end: StepL
     } else {
         this
     }
+}
+
+private fun List<StepLitePoint>.dedupeConsecutivePoints(): List<StepLitePoint> {
+    val points = ArrayList<StepLitePoint>(size)
+    forEach { point ->
+        if (points.lastOrNull()?.samePositionAs(point) != true) {
+            points += point
+        }
+    }
+    return points
 }
 
 private fun StepLiteEntity.bounds(): StepLiteBounds {
