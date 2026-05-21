@@ -8,8 +8,9 @@ This parser is intentionally not an OpenCascade binding and does not bundle WASM
 
 - Reads ISO-10303-21 STEP/STP text files from an `InputStream`
 - Detects bounded input size before building in-memory model structures
-- Extracts `PRODUCT` name, unit hints, `CARTESIAN_POINT`, `VERTEX_POINT`, `AXIS2_PLACEMENT_3D`, `CIRCLE`, and `EDGE_CURVE`
-- Emits lightweight line, circle, and arc entities with 3D bounds for preview adapters
+- Extracts `PRODUCT` name, unit hints, `CARTESIAN_POINT`, `VERTEX_POINT`, `AXIS2_PLACEMENT_3D`, `LINE`, `POLYLINE`, `CIRCLE`, and `EDGE_CURVE`
+- Emits lightweight line, polyline, circle, and arc entities with 3D bounds for preview adapters
+- Counts unsupported curve records instead of flattening them into misleading straight lines
 - Has no runtime dependencies beyond the Kotlin/JDK standard libraries
 - Publishes as `dev.jaeyoung:fileloom-step-lite`
 

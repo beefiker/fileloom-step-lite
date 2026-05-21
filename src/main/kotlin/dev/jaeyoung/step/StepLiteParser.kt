@@ -68,6 +68,11 @@ sealed interface StepLiteEntity {
         val endAngleRadians: Double,
         override val sourceId: Int? = null
     ) : StepLiteEntity
+
+    data class Polyline(
+        val points: List<StepLitePoint>,
+        override val sourceId: Int? = null
+    ) : StepLiteEntity
 }
 
 data class StepLiteDocument(
@@ -123,6 +128,8 @@ class StepLiteParser(
         val vertexPoints = linkedMapOf<Int, Int>()
         val placements = linkedMapOf<Int, AxisPlacementRecord>()
         val circles = linkedMapOf<Int, CircleRecord>()
+        val lineCurves = linkedSetOf<Int>()
+        val polylineCurves = linkedMapOf<Int, List<Int>>()
         val edges = ArrayList<EdgeCurveRecord>()
         var productName = ""
         var unit = StepLiteUnit.UNKNOWN
@@ -164,6 +171,15 @@ class StepLiteParser(
                         )
                     }
                 }
+                "LINE" -> {
+                    lineCurves += record.id
+                }
+                "POLYLINE" -> {
+                    val pointRefs = record.args.refs()
+                    if (pointRefs.size >= 2) {
+                        polylineCurves[record.id] = pointRefs
+                    }
+                }
                 "EDGE_CURVE" -> {
                     val refs = record.args.refs()
                     if (refs.size >= 3) {
@@ -185,32 +201,19 @@ class StepLiteParser(
             val start = vertexPoints[edge.startVertexId]?.let(points::get)
             val end = vertexPoints[edge.endVertexId]?.let(points::get)
             if (start != null && end != null) {
-                val circle = circles[edge.curveId]
-                val center = circle
-                    ?.let { placements[it.placementId] }
-                    ?.let { points[it.locationPointId] }
-                entities += if (circle != null && center != null) {
-                    if (start.samePositionAs(end)) {
-                        StepLiteEntity.Circle(
-                            center = center,
-                            radius = circle.radius,
-                            sourceId = edge.sourceId
-                        )
-                    } else {
-                        StepLiteEntity.Arc(
-                            center = center,
-                            radius = circle.radius,
-                            startAngleRadians = start.angleFrom(center),
-                            endAngleRadians = end.angleFrom(center),
-                            sourceId = edge.sourceId
-                        )
-                    }
+                val entity = edge.toEntity(
+                    start = start,
+                    end = end,
+                    points = points,
+                    placements = placements,
+                    circles = circles,
+                    lineCurves = lineCurves,
+                    polylineCurves = polylineCurves
+                )
+                if (entity != null) {
+                    entities += entity
                 } else {
-                    StepLiteEntity.Line(
-                        start = start,
-                        end = end,
-                        sourceId = edge.sourceId
-                    )
+                    unsupported += 1
                 }
             } else {
                 unsupported += 1
@@ -250,6 +253,58 @@ class StepLiteParser(
         val placementId: Int,
         val radius: Double
     )
+
+    private fun EdgeCurveRecord.toEntity(
+        start: StepLitePoint,
+        end: StepLitePoint,
+        points: Map<Int, StepLitePoint>,
+        placements: Map<Int, AxisPlacementRecord>,
+        circles: Map<Int, CircleRecord>,
+        lineCurves: Set<Int>,
+        polylineCurves: Map<Int, List<Int>>
+    ): StepLiteEntity? {
+        val circle = circles[curveId]
+        val center = circle
+            ?.let { placements[it.placementId] }
+            ?.let { points[it.locationPointId] }
+        if (circle != null && center != null) {
+            return if (start.samePositionAs(end)) {
+                StepLiteEntity.Circle(
+                    center = center,
+                    radius = circle.radius,
+                    sourceId = sourceId
+                )
+            } else {
+                StepLiteEntity.Arc(
+                    center = center,
+                    radius = circle.radius,
+                    startAngleRadians = start.angleFrom(center),
+                    endAngleRadians = end.angleFrom(center),
+                    sourceId = sourceId
+                )
+            }
+        }
+
+        val polylinePointIds = polylineCurves[curveId]
+        if (polylinePointIds != null) {
+            val polylinePoints = polylinePointIds.mapNotNull(points::get)
+                .takeIf { it.size >= 2 }
+                ?.orientedBetween(start, end)
+            return polylinePoints?.let {
+                StepLiteEntity.Polyline(points = it, sourceId = sourceId)
+            }
+        }
+
+        return if (curveId in lineCurves) {
+            StepLiteEntity.Line(
+                start = start,
+                end = end,
+                sourceId = sourceId
+            )
+        } else {
+            null
+        }
+    }
 
     private companion object {
         private const val StepHeader = "ISO-10303-21;"
@@ -493,9 +548,22 @@ private fun StepLitePoint.angleFrom(center: StepLitePoint): Double {
     return atan2(y - center.y, x - center.x)
 }
 
+private fun List<StepLitePoint>.orientedBetween(start: StepLitePoint, end: StepLitePoint): List<StepLitePoint> {
+    return if (
+        firstOrNull()?.samePositionAs(end) == true &&
+        lastOrNull()?.samePositionAs(start) == true
+    ) {
+        asReversed()
+    } else {
+        this
+    }
+}
+
 private fun StepLiteEntity.bounds(): StepLiteBounds {
     return when (this) {
         is StepLiteEntity.Line -> StepLiteBounds.fromPoint(start).include(end)
+        is StepLiteEntity.Polyline -> points.drop(1)
+            .fold(StepLiteBounds.fromPoint(points.first())) { bounds, point -> bounds.include(point) }
         is StepLiteEntity.Circle -> StepLiteBounds(
             min = StepLitePoint(center.x - radius, center.y - radius, center.z),
             max = StepLitePoint(center.x + radius, center.y + radius, center.z)

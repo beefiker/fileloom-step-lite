@@ -111,6 +111,39 @@ class StepLiteParserTest {
         assertEquals(0, document.unsupportedEntityCount)
     }
 
+    @Test
+    fun parsesPolylineEdgeCurvesWithoutFlatteningToSingleLine() {
+        val result = StepLiteParser().parse(PolylineStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val polyline = document.entities.single()
+        assertTrue(polyline is StepLiteEntity.Polyline)
+        polyline as StepLiteEntity.Polyline
+        assertEquals(3, polyline.points.size)
+        assertClose(0.0, polyline.points[0].x)
+        assertClose(0.0, polyline.points[0].y)
+        assertClose(5.0, polyline.points[1].x)
+        assertClose(8.0, polyline.points[1].y)
+        assertClose(10.0, polyline.points[2].x)
+        assertClose(0.0, polyline.points[2].y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
+    fun countsUnknownCurveEdgesInsteadOfFlatteningThem() {
+        val result = StepLiteParser().parse(UnknownCurveStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        assertTrue(document.entities.single() is StepLiteEntity.Line)
+        assertEquals(1, document.unsupportedEntityCount)
+    }
+
     private fun assertClose(expected: Double, actual: Double) {
         assertEquals(expected, actual, 0.000001)
     }
@@ -245,6 +278,59 @@ class StepLiteParserTest {
             #21=VERTEX_POINT('end vertex #998',#11);
             #30=LINE('line #997',#10,#90);
             #50=EDGE_CURVE('edge #996',#20,#21,#30,.T.);
+            #90=VECTOR('',#91,1.);
+            #91=DIRECTION('',(1.,0.,0.));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val PolylineStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom polyline STEP fixture'),'2;1');
+            FILE_NAME('polyline.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Polyline Fixture','Polyline Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(5.,8.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#12);
+            #30=POLYLINE('',(#10,#11,#12));
+            #40=EDGE_CURVE('',#20,#21,#30,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val UnknownCurveStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom unknown curve STEP fixture'),'2;1');
+            FILE_NAME('unknown.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Unknown Curve Fixture','Unknown Curve Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(10.,0.,0.));
+            #12=CARTESIAN_POINT('',(20.,0.,0.));
+            #13=CARTESIAN_POINT('',(30.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#11);
+            #22=VERTEX_POINT('',#12);
+            #23=VERTEX_POINT('',#13);
+            #30=LINE('',#10,#90);
+            #31=B_SPLINE_CURVE_WITH_KNOTS('',3,(#11,#12,#13),.UNSPECIFIED.,.F.,.F.,(2,2),(0.,1.),.UNSPECIFIED.);
+            #40=EDGE_CURVE('',#20,#21,#30,.T.);
+            #41=EDGE_CURVE('',#21,#23,#31,.T.);
             #90=VECTOR('',#91,1.);
             #91=DIRECTION('',(1.,0.,0.));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
