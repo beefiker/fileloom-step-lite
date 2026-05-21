@@ -619,6 +619,35 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun emitsStandaloneBoundedCurvesWithoutEdgeRecords() {
+        val result = StepLiteParser().parse(StandaloneBoundedCurvesStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(2, document.entities.size)
+        val polyline = document.entities[0]
+        assertTrue(polyline is StepLiteEntity.Polyline)
+        polyline as StepLiteEntity.Polyline
+        assertEquals(3, polyline.points.size)
+        assertClose(0.0, polyline.points.first().x)
+        assertClose(0.0, polyline.points.first().y)
+        assertClose(4.0, polyline.points.last().x)
+        assertClose(0.0, polyline.points.last().y)
+
+        val spline = document.entities[1]
+        assertTrue(spline is StepLiteEntity.Polyline)
+        spline as StepLiteEntity.Polyline
+        assertTrue(spline.points.size > 8)
+        assertClose(6.0, spline.points.first().x)
+        assertClose(0.0, spline.points.first().y)
+        assertClose(16.0, spline.points.last().x)
+        assertClose(0.0, spline.points.last().y)
+        assertTrue(spline.points.maxOf { it.y } > 4.0)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesComplexRationalBSplineRecordsAsLightweightPolylines() {
         val result = StepLiteParser().parse(ComplexRationalBSplineStep.byteInputStream())
 
@@ -1502,6 +1531,31 @@ class StepLiteParserTest {
             #41=AXIS2_PLACEMENT_3D('',#10,#42,#43);
             #42=DIRECTION('',(0.,0.,1.));
             #43=DIRECTION('',(1.,0.,0.));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StandaloneBoundedCurvesStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom standalone bounded curves STEP fixture'),'2;1');
+            FILE_NAME('standalone-bounded-curves.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Standalone Bounded Curves Fixture','Standalone Bounded Curves Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(2.,2.,0.));
+            #12=CARTESIAN_POINT('',(4.,0.,0.));
+            #20=CARTESIAN_POINT('',(6.,0.,0.));
+            #21=CARTESIAN_POINT('',(11.,12.,0.));
+            #22=CARTESIAN_POINT('',(16.,0.,0.));
+            #30=POLYLINE('',(#10,#11,#12));
+            #31=B_SPLINE_CURVE_WITH_KNOTS('',2,(#20,#21,#22),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);
+            #40=GEOMETRIC_CURVE_SET('',(#30,#31));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

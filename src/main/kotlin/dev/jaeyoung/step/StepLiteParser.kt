@@ -326,7 +326,14 @@ class StepLiteParser(
             }
         }
 
-        val entities = ArrayList<StepLiteEntity>(min(edges.size + polyLoops.size, maxEntities))
+        val entities = ArrayList<StepLiteEntity>(
+            min(edges.size + polyLoops.size + polylineCurves.size + splines.size + compositeCurves.size, maxEntities)
+        )
+        val referencedCurveIds = edges.asSequence()
+            .map { it.curveId }
+            .plus(curveWrappers.values.asSequence().map { it.basisCurveId })
+            .plus(compositeSegments.values.asSequence().map { it.parentCurveId })
+            .toSet()
         for (edge in edges) {
             if (entities.size >= maxEntities) break
             val start = vertexPoints[edge.startVertexId]?.let(points::get)
@@ -356,6 +363,43 @@ class StepLiteParser(
                 }
             } else {
                 unsupported += 1
+            }
+        }
+        for ((sourceId, pointIds) in polylineCurves) {
+            if (entities.size >= maxEntities) break
+            if (sourceId in referencedCurveIds) continue
+            pointIds.toPolylinePoints(points)?.let { polylinePoints ->
+                entities += StepLiteEntity.Polyline(
+                    points = polylinePoints,
+                    sourceId = sourceId
+                )
+            }
+        }
+        for ((sourceId, spline) in splines) {
+            if (entities.size >= maxEntities) break
+            if (sourceId in referencedCurveIds) continue
+            spline.toPolylinePoints(points)?.let { splinePoints ->
+                entities += StepLiteEntity.Polyline(
+                    points = splinePoints,
+                    sourceId = sourceId
+                )
+            }
+        }
+        for ((sourceId, segmentIds) in compositeCurves) {
+            if (entities.size >= maxEntities) break
+            if (sourceId in referencedCurveIds) continue
+            segmentIds.toCompositeCurvePoints(
+                points = points,
+                splines = splines,
+                curveWrappers = curveWrappers,
+                compositeSegments = compositeSegments,
+                compositeCurves = compositeCurves,
+                polylineCurves = polylineCurves
+            )?.let { compositePoints ->
+                entities += StepLiteEntity.Polyline(
+                    points = compositePoints,
+                    sourceId = sourceId
+                )
             }
         }
         for ((sourceId, pointIds) in polyLoops) {
@@ -695,8 +739,7 @@ class StepLiteParser(
 
         val polylinePointIds = polylineCurves[this]
         if (polylinePointIds != null) {
-            return polylinePointIds.mapNotNull(points::get)
-                .takeIf { it.size >= 2 }
+            return polylinePointIds.toPolylinePoints(points)
                 ?.let { if (sameSense) it else it.asReversed() }
         }
 
@@ -1673,11 +1716,15 @@ private fun List<StepLitePoint>.dedupeConsecutivePoints(): List<StepLitePoint> {
     return points
 }
 
-private fun List<Int>.toClosedPolylinePoints(pointsById: Map<Int, StepLitePoint>): List<StepLitePoint>? {
-    val loopPoints = mapNotNull(pointsById::get)
-        .takeIf { it.size == size && it.size >= 3 }
+private fun List<Int>.toPolylinePoints(pointsById: Map<Int, StepLitePoint>): List<StepLitePoint>? {
+    return mapNotNull(pointsById::get)
+        .takeIf { it.size == size && it.size >= 2 }
         ?.dedupeConsecutivePoints()
-        ?: return null
+        ?.takeIf { it.size >= 2 }
+}
+
+private fun List<Int>.toClosedPolylinePoints(pointsById: Map<Int, StepLitePoint>): List<StepLitePoint>? {
+    val loopPoints = toPolylinePoints(pointsById) ?: return null
     if (loopPoints.size < 3) return null
     return if (loopPoints.first().samePositionAs(loopPoints.last())) {
         loopPoints
