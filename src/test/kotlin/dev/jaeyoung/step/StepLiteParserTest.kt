@@ -295,6 +295,33 @@ class StepLiteParserTest {
         assertEquals(0, document.unsupportedEntityCount)
     }
 
+    @Test
+    fun resolvesSurfaceAndSeamCurveWrappersBeforeParsingEdgeCurves() {
+        val result = StepLiteParser().parse(SurfaceCurveWrapperStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(2, document.entities.size)
+        val surfaceCurve = document.entities[0]
+        assertTrue(surfaceCurve is StepLiteEntity.Polyline)
+        surfaceCurve as StepLiteEntity.Polyline
+        assertClose(0.0, surfaceCurve.points.first().x)
+        assertClose(0.0, surfaceCurve.points.first().y)
+        assertClose(10.0, surfaceCurve.points.last().x)
+        assertClose(0.0, surfaceCurve.points.last().y)
+        assertTrue(surfaceCurve.points.maxOf { it.y } > 4.0)
+
+        val seamCurve = document.entities[1]
+        assertTrue(seamCurve is StepLiteEntity.Polyline)
+        seamCurve as StepLiteEntity.Polyline
+        assertClose(0.0, seamCurve.points.first().x)
+        assertClose(0.0, seamCurve.points.first().y)
+        assertClose(10.0, seamCurve.points.last().x)
+        assertClose(0.0, seamCurve.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
     private fun assertClose(expected: Double, actual: Double) {
         assertEquals(expected, actual, 0.000001)
     }
@@ -663,6 +690,41 @@ class StepLiteParserTest {
             #31=TRIMMED_CURVE('',#14,(#21),(#20),.F.,.CARTESIAN.);
             #40=EDGE_CURVE('',#22,#23,#30,.T.);
             #41=EDGE_CURVE('',#23,#22,#31,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val SurfaceCurveWrapperStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom surface curve wrapper STEP fixture'),'2;1');
+            FILE_NAME('surface-curve.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Surface Curve Fixture','Surface Curve Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(5.,10.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#12);
+            #30=B_SPLINE_CURVE_WITH_KNOTS('',2,(#10,#11,#12),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);
+            #31=SURFACE_CURVE('',#30,(#90),.CURVE_3D.);
+            #32=SEAM_CURVE('',#30,(#91,#92),.PCURVE_S1.);
+            #40=EDGE_CURVE('',#20,#21,#31,.T.);
+            #41=EDGE_CURVE('',#20,#21,#32,.T.);
+            #90=PCURVE('',#93,#94);
+            #91=PCURVE('',#93,#94);
+            #92=PCURVE('',#93,#94);
+            #93=PLANE('',#95);
+            #94=DEFINITIONAL_REPRESENTATION('',(),#96);
+            #95=AXIS2_PLACEMENT_3D('',#10,#97,#98);
+            #96=REPRESENTATION_CONTEXT('','');
+            #97=DIRECTION('',(0.,0.,1.));
+            #98=DIRECTION('',(1.,0.,0.));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

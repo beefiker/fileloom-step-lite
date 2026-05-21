@@ -147,7 +147,7 @@ class StepLiteParser(
         val circles = linkedMapOf<Int, CircleRecord>()
         val ellipses = linkedMapOf<Int, EllipseRecord>()
         val splines = linkedMapOf<Int, BSplineRecord>()
-        val trimmedCurves = linkedMapOf<Int, TrimmedCurveRecord>()
+        val curveWrappers = linkedMapOf<Int, CurveWrapperRecord>()
         val lineCurves = linkedSetOf<Int>()
         val polylineCurves = linkedMapOf<Int, List<Int>>()
         val edges = ArrayList<EdgeCurveRecord>()
@@ -225,7 +225,11 @@ class StepLiteParser(
                 }
                 "TRIMMED_CURVE" -> {
                     val trimmedCurve = record.args.toTrimmedCurveRecord()
-                    if (trimmedCurve != null) trimmedCurves[record.id] = trimmedCurve
+                    if (trimmedCurve != null) curveWrappers[record.id] = trimmedCurve
+                }
+                "SURFACE_CURVE", "SEAM_CURVE" -> {
+                    val wrappedCurve = record.args.toBasisCurveWrapperRecord()
+                    if (wrappedCurve != null) curveWrappers[record.id] = wrappedCurve
                 }
                 "EDGE_CURVE" -> {
                     val refs = record.args.refs()
@@ -263,7 +267,7 @@ class StepLiteParser(
                     circles = circles,
                     ellipses = ellipses,
                     splines = splines,
-                    trimmedCurves = trimmedCurves,
+                    curveWrappers = curveWrappers,
                     lineCurves = lineCurves,
                     polylineCurves = polylineCurves
                 )
@@ -326,7 +330,7 @@ class StepLiteParser(
         val knots: List<Double>
     )
 
-    private data class TrimmedCurveRecord(
+    private data class CurveWrapperRecord(
         val basisCurveId: Int,
         val sameSense: Boolean
     )
@@ -345,11 +349,11 @@ class StepLiteParser(
         circles: Map<Int, CircleRecord>,
         ellipses: Map<Int, EllipseRecord>,
         splines: Map<Int, BSplineRecord>,
-        trimmedCurves: Map<Int, TrimmedCurveRecord>,
+        curveWrappers: Map<Int, CurveWrapperRecord>,
         lineCurves: Set<Int>,
         polylineCurves: Map<Int, List<Int>>
     ): StepLiteEntity? {
-        val resolvedCurve = resolveCurve(trimmedCurves)
+        val resolvedCurve = resolveCurve(curveWrappers)
         val resolvedCurveId = resolvedCurve.curveId
         val resolvedSameSense = resolvedCurve.sameSense
 
@@ -443,13 +447,13 @@ class StepLiteParser(
         }
     }
 
-    private fun EdgeCurveRecord.resolveCurve(trimmedCurves: Map<Int, TrimmedCurveRecord>): ResolvedCurveRecord {
+    private fun EdgeCurveRecord.resolveCurve(curveWrappers: Map<Int, CurveWrapperRecord>): ResolvedCurveRecord {
         var id = curveId
         var sense = sameSense
-        repeat(MaxTrimmedCurveDepth) {
-            val trimmedCurve = trimmedCurves[id] ?: return ResolvedCurveRecord(id, sense)
-            id = trimmedCurve.basisCurveId
-            sense = sense == trimmedCurve.sameSense
+        repeat(MaxCurveWrapperDepth) {
+            val wrapper = curveWrappers[id] ?: return ResolvedCurveRecord(id, sense)
+            id = wrapper.basisCurveId
+            sense = sense == wrapper.sameSense
         }
         return ResolvedCurveRecord(id, sense)
     }
@@ -622,11 +626,19 @@ class StepLiteParser(
         )
     }
 
-    private fun String.toTrimmedCurveRecord(): TrimmedCurveRecord? {
+    private fun String.toTrimmedCurveRecord(): CurveWrapperRecord? {
         val basisCurveId = refs().firstOrNull() ?: return null
-        return TrimmedCurveRecord(
+        return CurveWrapperRecord(
             basisCurveId = basisCurveId,
             sameSense = lastTopLevelLogical() ?: true
+        )
+    }
+
+    private fun String.toBasisCurveWrapperRecord(): CurveWrapperRecord? {
+        val basisCurveId = refs().firstOrNull() ?: return null
+        return CurveWrapperRecord(
+            basisCurveId = basisCurveId,
+            sameSense = true
         )
     }
 
@@ -638,7 +650,7 @@ class StepLiteParser(
         private const val CircleSegments = 32
         private const val EllipseSegments = 32
         private const val SplineSegments = 32
-        private const val MaxTrimmedCurveDepth = 8
+        private const val MaxCurveWrapperDepth = 8
         private val DefaultXAxis = DirectionRecord(1.0, 0.0, 0.0)
         private val DefaultYAxis = DirectionRecord(0.0, 1.0, 0.0)
         private val DefaultZAxis = DirectionRecord(0.0, 0.0, 1.0)
