@@ -466,6 +466,11 @@ class StepLiteParser(
                 splines = splines,
                 directions = directions,
                 vectors = vectors,
+                placements = placements,
+                circles = circles,
+                ellipses = ellipses,
+                parabolas = parabolas,
+                hyperbolas = hyperbolas,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
@@ -738,6 +743,11 @@ class StepLiteParser(
                 splines = splines,
                 directions = directions,
                 vectors = vectors,
+                placements = placements,
+                circles = circles,
+                ellipses = ellipses,
+                parabolas = parabolas,
+                hyperbolas = hyperbolas,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
@@ -856,6 +866,11 @@ class StepLiteParser(
             splines = splines,
             directions = directions,
             vectors = vectors,
+            placements = placements,
+            circles = circles,
+            ellipses = ellipses,
+            parabolas = parabolas,
+            hyperbolas = hyperbolas,
             curveWrappers = curveWrappers,
             compositeSegments = compositeSegments,
             compositeCurves = compositeCurves,
@@ -870,6 +885,11 @@ class StepLiteParser(
         splines: Map<Int, BSplineRecord>,
         directions: Map<Int, DirectionRecord>,
         vectors: Map<Int, VectorRecord>,
+        placements: Map<Int, AxisPlacementRecord>,
+        circles: Map<Int, CircleRecord>,
+        ellipses: Map<Int, EllipseRecord>,
+        parabolas: Map<Int, ParabolaRecord>,
+        hyperbolas: Map<Int, HyperbolaRecord>,
         curveWrappers: Map<Int, CurveWrapperRecord>,
         compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
         compositeCurves: Map<Int, List<Int>>,
@@ -887,6 +907,11 @@ class StepLiteParser(
                 splines = splines,
                 directions = directions,
                 vectors = vectors,
+                placements = placements,
+                circles = circles,
+                ellipses = ellipses,
+                parabolas = parabolas,
+                hyperbolas = hyperbolas,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
@@ -909,6 +934,11 @@ class StepLiteParser(
         splines: Map<Int, BSplineRecord>,
         directions: Map<Int, DirectionRecord>,
         vectors: Map<Int, VectorRecord>,
+        placements: Map<Int, AxisPlacementRecord>,
+        circles: Map<Int, CircleRecord>,
+        ellipses: Map<Int, EllipseRecord>,
+        parabolas: Map<Int, ParabolaRecord>,
+        hyperbolas: Map<Int, HyperbolaRecord>,
         curveWrappers: Map<Int, CurveWrapperRecord>,
         compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
         compositeCurves: Map<Int, List<Int>>,
@@ -920,12 +950,42 @@ class StepLiteParser(
 
         val wrapper = curveWrappers[this]
         if (wrapper != null) {
+            val wrapperSameSense = sameSense == wrapper.sameSense
+            val trimStart = wrapper.trimStartPointId?.let(points::get)
+            val trimEnd = wrapper.trimEndPointId?.let(points::get)
+            if (trimStart != null && trimEnd != null) {
+                return wrapper.basisCurveId.toTrimmedBoundedCurvePoints(
+                    sameSense = wrapperSameSense,
+                    trimStart = trimStart,
+                    trimEnd = trimEnd,
+                    points = points,
+                    splines = splines,
+                    directions = directions,
+                    vectors = vectors,
+                    placements = placements,
+                    circles = circles,
+                    ellipses = ellipses,
+                    parabolas = parabolas,
+                    hyperbolas = hyperbolas,
+                    curveWrappers = curveWrappers,
+                    compositeSegments = compositeSegments,
+                    compositeCurves = compositeCurves,
+                    lineRecords = lineRecords,
+                    polylineCurves = polylineCurves,
+                    depth = depth + 1
+                )
+            }
             return wrapper.basisCurveId.toBoundedCurvePoints(
-                sameSense = sameSense == wrapper.sameSense,
+                sameSense = wrapperSameSense,
                 points = points,
                 splines = splines,
                 directions = directions,
                 vectors = vectors,
+                placements = placements,
+                circles = circles,
+                ellipses = ellipses,
+                parabolas = parabolas,
+                hyperbolas = hyperbolas,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
@@ -942,6 +1002,11 @@ class StepLiteParser(
                 splines = splines,
                 directions = directions,
                 vectors = vectors,
+                placements = placements,
+                circles = circles,
+                ellipses = ellipses,
+                parabolas = parabolas,
+                hyperbolas = hyperbolas,
                 curveWrappers = curveWrappers,
                 compositeSegments = compositeSegments,
                 compositeCurves = compositeCurves,
@@ -973,6 +1038,100 @@ class StepLiteParser(
         }
 
         return null
+    }
+
+    private fun Int.toTrimmedBoundedCurvePoints(
+        sameSense: Boolean,
+        trimStart: StepLitePoint,
+        trimEnd: StepLitePoint,
+        points: Map<Int, StepLitePoint>,
+        splines: Map<Int, BSplineRecord>,
+        directions: Map<Int, DirectionRecord>,
+        vectors: Map<Int, VectorRecord>,
+        placements: Map<Int, AxisPlacementRecord>,
+        circles: Map<Int, CircleRecord>,
+        ellipses: Map<Int, EllipseRecord>,
+        parabolas: Map<Int, ParabolaRecord>,
+        hyperbolas: Map<Int, HyperbolaRecord>,
+        curveWrappers: Map<Int, CurveWrapperRecord>,
+        compositeSegments: Map<Int, CompositeCurveSegmentRecord>,
+        compositeCurves: Map<Int, List<Int>>,
+        lineRecords: Map<Int, LineRecord>,
+        polylineCurves: Map<Int, List<Int>>,
+        depth: Int
+    ): List<StepLitePoint>? {
+        if (depth > MaxCurveWrapperDepth) return null
+        val start = if (sameSense) trimStart else trimEnd
+        val end = if (sameSense) trimEnd else trimStart
+
+        val circle = circles[this]
+        val circlePlacement = circle?.let { placements[it.placementId] }
+        val circleCenter = circlePlacement?.let { points[it.locationPointId] }
+        if (circle != null && circlePlacement != null && circleCenter != null) {
+            return circle.toPolylinePoints(
+                center = circleCenter,
+                basis = circlePlacement.toBasis(directions),
+                start = start,
+                end = end,
+                closed = start.samePositionAs(end)
+            )
+        }
+
+        val ellipse = ellipses[this]
+        val ellipsePlacement = ellipse?.let { placements[it.placementId] }
+        val ellipseCenter = ellipsePlacement?.let { points[it.locationPointId] }
+        if (ellipse != null && ellipsePlacement != null && ellipseCenter != null) {
+            return ellipse.toPolylinePoints(
+                center = ellipseCenter,
+                basis = ellipsePlacement.toBasis(directions),
+                start = start,
+                end = end,
+                closed = start.samePositionAs(end)
+            )
+        }
+
+        val parabola = parabolas[this]
+        val parabolaPlacement = parabola?.let { placements[it.placementId] }
+        val parabolaCenter = parabolaPlacement?.let { points[it.locationPointId] }
+        if (parabola != null && parabolaPlacement != null && parabolaCenter != null) {
+            return parabola.toPolylinePoints(
+                center = parabolaCenter,
+                basis = parabolaPlacement.toBasis(directions),
+                start = start,
+                end = end
+            )
+        }
+
+        val hyperbola = hyperbolas[this]
+        val hyperbolaPlacement = hyperbola?.let { placements[it.placementId] }
+        val hyperbolaCenter = hyperbolaPlacement?.let { points[it.locationPointId] }
+        if (hyperbola != null && hyperbolaPlacement != null && hyperbolaCenter != null) {
+            return hyperbola.toPolylinePoints(
+                center = hyperbolaCenter,
+                basis = hyperbolaPlacement.toBasis(directions),
+                start = start,
+                end = end
+            )
+        }
+
+        return toBoundedCurvePoints(
+            sameSense = true,
+            points = points,
+            splines = splines,
+            directions = directions,
+            vectors = vectors,
+            placements = placements,
+            circles = circles,
+            ellipses = ellipses,
+            parabolas = parabolas,
+            hyperbolas = hyperbolas,
+            curveWrappers = curveWrappers,
+            compositeSegments = compositeSegments,
+            compositeCurves = compositeCurves,
+            lineRecords = lineRecords,
+            polylineCurves = polylineCurves,
+            depth = depth + 1
+        )?.orientedBetween(start = start, end = end)
     }
 
     private fun CircleRecord.toPolylinePoints(
