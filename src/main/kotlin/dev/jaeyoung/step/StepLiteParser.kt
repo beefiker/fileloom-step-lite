@@ -409,6 +409,10 @@ class StepLiteParser(
         )
 
         fun addEntity(entity: StepLiteEntity) {
+            if (!entity.hasFiniteGeometry()) {
+                unsupported += 1
+                return
+            }
             if (entities.size >= maxEntities) throw StepLiteTooLargeException()
             entities += entity
         }
@@ -3050,6 +3054,22 @@ private fun StepLiteEntity.bounds(): StepLiteBounds {
             max = StepLitePoint(center.x + radius, center.y + radius, center.z)
         )
     }
+}
+
+private fun StepLiteEntity.hasFiniteGeometry(): Boolean {
+    return when (this) {
+        is StepLiteEntity.Line -> start.isFinite() && end.isFinite()
+        is StepLiteEntity.Polyline -> points.all { it.isFinite() }
+        is StepLiteEntity.Circle -> center.isFinite() && radius.isFinite()
+        is StepLiteEntity.Arc -> center.isFinite() &&
+            radius.isFinite() &&
+            startAngleRadians.isFinite() &&
+            endAngleRadians.isFinite()
+    }
+}
+
+private fun StepLitePoint.isFinite(): Boolean {
+    return x.isFinite() && y.isFinite() && z.isFinite()
 }
 
 private fun String.toStepDoubleOrNull(): Double? {

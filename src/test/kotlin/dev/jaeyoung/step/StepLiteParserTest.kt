@@ -120,6 +120,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsOverflowingGeneratedGeometryInsteadOfReturningInfiniteBounds() {
+        val result = StepLiteParser().parse(OverflowingGeneratedGeometryStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun parsesCircularEdgeCurvesIntoArcsAndClosedCircles() {
         val result = StepLiteParser().parse(CircularStep.byteInputStream())
 
@@ -1632,6 +1642,29 @@ class StepLiteParserTest {
             #40=VECTOR('',#41,1.);
             #41=DIRECTION('',(1.,0.,0.));
             #50=EDGE_CURVE('',#20,#21,#30,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val OverflowingGeneratedGeometryStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom overflowing generated geometry STEP fixture'),'2;1');
+            FILE_NAME('overflowing-generated-geometry.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Overflowing Generated Geometry Fixture','Overflowing Generated Geometry Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=DIRECTION('',(0.,0.,1.));
+            #12=DIRECTION('',(1.,0.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #20=HYPERBOLA('',#13,2.,1.);
+            #30=TRIMMED_CURVE('',#20,(PARAMETER_VALUE(1000.)),(PARAMETER_VALUE(1001.)),.T.,.PARAMETER.);
+            #40=GEOMETRIC_CURVE_SET('',(#30));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
