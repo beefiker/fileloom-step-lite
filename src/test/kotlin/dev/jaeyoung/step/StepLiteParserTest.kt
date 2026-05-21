@@ -133,6 +133,35 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesComplexLineAndPolylineRecordsAsLightweightCurves() {
+        val result = StepLiteParser().parse(ComplexLinePolylineStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(2, document.entities.size)
+        val line = document.entities[0]
+        assertTrue(line is StepLiteEntity.Line)
+        line as StepLiteEntity.Line
+        assertClose(0.0, line.start.x)
+        assertClose(0.0, line.start.y)
+        assertClose(10.0, line.end.x)
+        assertClose(0.0, line.end.y)
+
+        val polyline = document.entities[1]
+        assertTrue(polyline is StepLiteEntity.Polyline)
+        polyline as StepLiteEntity.Polyline
+        assertEquals(3, polyline.points.size)
+        assertClose(10.0, polyline.points[0].x)
+        assertClose(0.0, polyline.points[0].y)
+        assertClose(15.0, polyline.points[1].x)
+        assertClose(8.0, polyline.points[1].y)
+        assertClose(20.0, polyline.points[2].x)
+        assertClose(0.0, polyline.points[2].y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun countsUnknownCurveEdgesInsteadOfFlatteningThem() {
         val result = StepLiteParser().parse(UnknownCurveStep.byteInputStream())
 
@@ -529,6 +558,46 @@ class StepLiteParserTest {
             #21=VERTEX_POINT('',#12);
             #30=POLYLINE('',(#10,#11,#12));
             #40=EDGE_CURVE('',#20,#21,#30,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val ComplexLinePolylineStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom complex line polyline STEP fixture'),'2;1');
+            FILE_NAME('complex-line-polyline.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Complex Line Polyline Fixture','Complex Line Polyline Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(10.,0.,0.));
+            #12=CARTESIAN_POINT('',(15.,8.,0.));
+            #13=CARTESIAN_POINT('',(20.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#11);
+            #22=VERTEX_POINT('',#13);
+            #30=(
+                CURVE()
+                GEOMETRIC_REPRESENTATION_ITEM()
+                LINE('',#10,#90)
+                REPRESENTATION_ITEM('')
+            );
+            #31=(
+                BOUNDED_CURVE()
+                CURVE()
+                GEOMETRIC_REPRESENTATION_ITEM()
+                POLYLINE('',(#11,#12,#13))
+                REPRESENTATION_ITEM('')
+            );
+            #40=EDGE_CURVE('',#20,#21,#30,.T.);
+            #41=EDGE_CURVE('',#21,#22,#31,.T.);
+            #90=VECTOR('',#91,1.);
+            #91=DIRECTION('',(1.,0.,0.));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

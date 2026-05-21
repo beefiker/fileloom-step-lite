@@ -201,10 +201,8 @@ class StepLiteParser(
                     lineCurves += record.id
                 }
                 "POLYLINE" -> {
-                    val pointRefs = record.args.refs()
-                    if (pointRefs.size >= 2) {
-                        polylineCurves[record.id] = pointRefs
-                    }
+                    val polyline = record.args.toPolylineRecord()
+                    if (polyline != null) polylineCurves[record.id] = polyline
                 }
                 "B_SPLINE_CURVE_WITH_KNOTS" -> {
                     val spline = record.args.toBSplineRecord()
@@ -222,6 +220,9 @@ class StepLiteParser(
                     unit = maxOf(unit, record.args.resolveUnit())
                     val spline = record.args.toComplexBSplineRecord()
                     if (spline != null) splines[record.id] = spline
+                    if (record.args.entityArgs("LINE") != null) lineCurves += record.id
+                    val polyline = record.args.entityArgs("POLYLINE")?.toPolylineRecord()
+                    if (polyline != null) polylineCurves[record.id] = polyline
                     val circle = record.args.entityArgs("CIRCLE")?.toCircleRecord()
                     if (circle != null) circles[record.id] = circle
                     val ellipse = record.args.entityArgs("ELLIPSE")?.toEllipseRecord()
@@ -707,6 +708,10 @@ class StepLiteParser(
             majorRadius = radii[0],
             minorRadius = radii[1]
         )
+    }
+
+    private fun String.toPolylineRecord(): List<Int>? {
+        return refs().takeIf { it.size >= 2 }
     }
 
     private fun String.toBSplineRecord(
