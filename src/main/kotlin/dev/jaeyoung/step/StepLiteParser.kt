@@ -283,7 +283,11 @@ class StepLiteParser(
                 }
                 "OFFSET_CURVE_3D" -> {
                     val offsetCurve = record.args.toOffsetCurveRecord()
-                    if (offsetCurve != null) curveWrappers[record.id] = offsetCurve
+                    if (offsetCurve != null) {
+                        curveWrappers[record.id] = offsetCurve
+                    } else {
+                        record.args.refs().firstOrNull()?.let(invalidWrapperBasisCurveIds::add)
+                    }
                 }
                 "COMPOSITE_CURVE_SEGMENT" -> {
                     val segment = record.args.toCompositeCurveSegmentRecord()
@@ -356,8 +360,13 @@ class StepLiteParser(
                     if (surfaceCurve != null) curveWrappers[record.id] = surfaceCurve
                     val seamCurve = record.args.entityArgs("SEAM_CURVE")?.toBasisCurveWrapperRecord()
                     if (seamCurve != null) curveWrappers[record.id] = seamCurve
-                    val offsetCurve = record.args.entityArgs("OFFSET_CURVE_3D")?.toOffsetCurveRecord()
-                    if (offsetCurve != null) curveWrappers[record.id] = offsetCurve
+                    val offsetCurveArgs = record.args.entityArgs("OFFSET_CURVE_3D")
+                    val offsetCurve = offsetCurveArgs?.toOffsetCurveRecord()
+                    if (offsetCurve != null) {
+                        curveWrappers[record.id] = offsetCurve
+                    } else {
+                        offsetCurveArgs?.refs()?.firstOrNull()?.let(invalidWrapperBasisCurveIds::add)
+                    }
                     val compositeSegment = record.args.entityArgs("COMPOSITE_CURVE_SEGMENT")
                         ?.toCompositeCurveSegmentRecord()
                     if (compositeSegment != null) compositeSegments[record.id] = compositeSegment

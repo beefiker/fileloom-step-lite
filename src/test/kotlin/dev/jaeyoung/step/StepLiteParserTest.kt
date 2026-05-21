@@ -1488,6 +1488,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsUnknownOffsetCurveDistanceInsteadOfEmittingBasisCurve() {
+        val result = StepLiteParser().parse(UnknownOffsetCurveDistanceStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun parsesComplexRationalBSplineRecordsAsLightweightPolylines() {
         val result = StepLiteParser().parse(ComplexRationalBSplineStep.byteInputStream())
 
@@ -3539,6 +3549,29 @@ class StepLiteParserTest {
             #40=POLYLINE('',(#10,#11,#12));
             #41=OFFSET_CURVE_3D('',#40,2.,#30,.F.);
             #50=EDGE_CURVE('',#20,#21,#41,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val UnknownOffsetCurveDistanceStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom unknown offset curve distance STEP fixture'),'2;1');
+            FILE_NAME('unknown-offset-curve-distance.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Unknown Offset Curve Distance Fixture','Unknown Offset Curve Distance Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(4.,0.,0.));
+            #12=CARTESIAN_POINT('',(4.,3.,0.));
+            #20=DIRECTION('',(0.,2.,0.));
+            #30=POLYLINE('',(#10,#11,#12));
+            #40=OFFSET_CURVE_3D('',#30,$,#20,.F.);
+            #50=GEOMETRIC_CURVE_SET('',(#40));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
