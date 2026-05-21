@@ -40,6 +40,9 @@ class StepLitePublishingTest {
         assertTrue(buildFile.contains("generateMetadataFileForMavenJavaPublication"))
         assertTrue(artifactCheckScript.contains("build/publications/mavenJava/module.json"))
         assertTrue(artifactCheckScript.contains("\\\"module\\\": \\\"fileloom-step-lite\\\""))
+        assertTrue(artifactCheckScript.contains("\\\"org.gradle.jvm.version\\\": 17"))
+        assertTrue(artifactCheckScript.contains("\\\"org.jetbrains.kotlin.platform.type\\\": \\\"jvm\\\""))
+        assertTrue(artifactCheckScript.contains("\\\"module\\\": \\\"kotlin-stdlib\\\""))
     }
 
     @Test

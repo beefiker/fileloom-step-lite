@@ -61,3 +61,6 @@ require_pom_text "<developerConnection>scm:git:https://github.com/beefiker/filel
 require_module_text "\"group\": \"dev.jaeyoung\""
 require_module_text "\"module\": \"fileloom-step-lite\""
 require_module_text "\"version\": \"${VERSION}\""
+require_module_text "\"org.gradle.jvm.version\": 17"
+require_module_text "\"org.jetbrains.kotlin.platform.type\": \"jvm\""
+require_module_text "\"module\": \"kotlin-stdlib\""
