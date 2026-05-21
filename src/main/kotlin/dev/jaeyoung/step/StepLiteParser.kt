@@ -7,6 +7,8 @@ import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -147,6 +149,7 @@ class StepLiteParser(
         val circles = linkedMapOf<Int, CircleRecord>()
         val ellipses = linkedMapOf<Int, EllipseRecord>()
         val parabolas = linkedMapOf<Int, ParabolaRecord>()
+        val hyperbolas = linkedMapOf<Int, HyperbolaRecord>()
         val splines = linkedMapOf<Int, BSplineRecord>()
         val curveWrappers = linkedMapOf<Int, CurveWrapperRecord>()
         val lineCurves = linkedSetOf<Int>()
@@ -202,6 +205,10 @@ class StepLiteParser(
                     val parabola = record.args.toParabolaRecord()
                     if (parabola != null) parabolas[record.id] = parabola
                 }
+                "HYPERBOLA" -> {
+                    val hyperbola = record.args.toHyperbolaRecord()
+                    if (hyperbola != null) hyperbolas[record.id] = hyperbola
+                }
                 "LINE" -> {
                     lineCurves += record.id
                 }
@@ -252,6 +259,8 @@ class StepLiteParser(
                     if (ellipse != null) ellipses[record.id] = ellipse
                     val parabola = record.args.entityArgs("PARABOLA")?.toParabolaRecord()
                     if (parabola != null) parabolas[record.id] = parabola
+                    val hyperbola = record.args.entityArgs("HYPERBOLA")?.toHyperbolaRecord()
+                    if (hyperbola != null) hyperbolas[record.id] = hyperbola
                     val trimmedCurve = record.args.entityArgs("TRIMMED_CURVE")?.toTrimmedCurveRecord()
                     if (trimmedCurve != null) curveWrappers[record.id] = trimmedCurve
                     val surfaceCurve = record.args.entityArgs("SURFACE_CURVE")?.toBasisCurveWrapperRecord()
@@ -310,6 +319,7 @@ class StepLiteParser(
                     circles = circles,
                     ellipses = ellipses,
                     parabolas = parabolas,
+                    hyperbolas = hyperbolas,
                     splines = splines,
                     curveWrappers = curveWrappers,
                     lineCurves = lineCurves,
@@ -373,6 +383,12 @@ class StepLiteParser(
         val focalDistance: Double
     )
 
+    private data class HyperbolaRecord(
+        val placementId: Int,
+        val semiAxis: Double,
+        val semiImagAxis: Double
+    )
+
     private data class BSplineRecord(
         val degree: Int,
         val controlPointIds: List<Int>,
@@ -406,6 +422,7 @@ class StepLiteParser(
         circles: Map<Int, CircleRecord>,
         ellipses: Map<Int, EllipseRecord>,
         parabolas: Map<Int, ParabolaRecord>,
+        hyperbolas: Map<Int, HyperbolaRecord>,
         splines: Map<Int, BSplineRecord>,
         curveWrappers: Map<Int, CurveWrapperRecord>,
         lineCurves: Set<Int>,
@@ -477,6 +494,21 @@ class StepLiteParser(
                 points = parabola.toPolylinePoints(
                     center = parabolaCenter,
                     basis = parabolaPlacement.toBasis(directions),
+                    start = if (resolvedSameSense) start else end,
+                    end = if (resolvedSameSense) end else start
+                ),
+                sourceId = sourceId
+            )
+        }
+
+        val hyperbola = hyperbolas[resolvedCurveId]
+        val hyperbolaPlacement = hyperbola?.let { placements[it.placementId] }
+        val hyperbolaCenter = hyperbolaPlacement?.let { points[it.locationPointId] }
+        if (hyperbola != null && hyperbolaPlacement != null && hyperbolaCenter != null) {
+            return StepLiteEntity.Polyline(
+                points = hyperbola.toPolylinePoints(
+                    center = hyperbolaCenter,
+                    basis = hyperbolaPlacement.toBasis(directions),
                     start = if (resolvedSameSense) start else end,
                     end = if (resolvedSameSense) end else start
                 ),
@@ -581,6 +613,27 @@ class StepLiteParser(
             val parameter = startParameter + (endParameter - startParameter) * index / ParabolaSegments
             val majorOffset = focalDistance * parameter * parameter
             val minorOffset = 2.0 * focalDistance * parameter
+            StepLitePoint(
+                x = center.x + basis.xAxis.x * majorOffset + basis.yAxis.x * minorOffset,
+                y = center.y + basis.xAxis.y * majorOffset + basis.yAxis.y * minorOffset,
+                z = center.z + basis.xAxis.z * majorOffset + basis.yAxis.z * minorOffset
+            )
+        }
+    }
+
+    private fun HyperbolaRecord.toPolylinePoints(
+        center: StepLitePoint,
+        basis: PlacementBasis,
+        start: StepLitePoint,
+        end: StepLitePoint
+    ): List<StepLitePoint> {
+        val startParameter = start.hyperbolaParameterFrom(center, basis, semiImagAxis)
+        val endParameter = end.hyperbolaParameterFrom(center, basis, semiImagAxis)
+        val branchSign = start.hyperbolaBranchSignFrom(center, basis)
+        return List(HyperbolaSegments + 1) { index ->
+            val parameter = startParameter + (endParameter - startParameter) * index / HyperbolaSegments
+            val majorOffset = branchSign * semiAxis * hyperbolicCosine(parameter)
+            val minorOffset = semiImagAxis * hyperbolicSine(parameter)
             StepLitePoint(
                 x = center.x + basis.xAxis.x * majorOffset + basis.yAxis.x * minorOffset,
                 y = center.y + basis.xAxis.y * majorOffset + basis.yAxis.y * minorOffset,
@@ -808,6 +861,17 @@ class StepLiteParser(
         )
     }
 
+    private fun String.toHyperbolaRecord(): HyperbolaRecord? {
+        val placementId = refs().firstOrNull() ?: return null
+        val radii = topLevelNumbers().takeLast(2)
+        if (radii.size != 2 || radii[0] <= 0.0 || radii[1] <= 0.0) return null
+        return HyperbolaRecord(
+            placementId = placementId,
+            semiAxis = radii[0],
+            semiImagAxis = radii[1]
+        )
+    }
+
     private fun String.toPolylineRecord(): List<Int>? {
         return refs().takeIf { it.size >= 2 }
     }
@@ -863,6 +927,7 @@ class StepLiteParser(
         private const val CircleSegments = 32
         private const val EllipseSegments = 32
         private const val ParabolaSegments = 32
+        private const val HyperbolaSegments = 32
         private const val SplineSegments = 32
         private const val MaxCurveWrapperDepth = 8
         private val DefaultXAxis = DirectionRecord(1.0, 0.0, 0.0)
@@ -1310,10 +1375,48 @@ private fun StepLitePoint.parabolaParameterFrom(
     return relative.dot(basis.yAxis) / (2.0 * focalDistance)
 }
 
+private fun StepLitePoint.hyperbolaParameterFrom(
+    center: StepLitePoint,
+    basis: PlacementBasis,
+    semiImagAxis: Double
+): Double {
+    val relative = DirectionRecord(
+        x = x - center.x,
+        y = y - center.y,
+        z = z - center.z
+    )
+    return asinh(relative.dot(basis.yAxis) / semiImagAxis)
+}
+
+private fun StepLitePoint.hyperbolaBranchSignFrom(center: StepLitePoint, basis: PlacementBasis): Double {
+    val majorDistance = DirectionRecord(
+        x = x - center.x,
+        y = y - center.y,
+        z = z - center.z
+    ).dot(basis.xAxis)
+    return if (majorDistance < 0.0) -1.0 else 1.0
+}
+
 private fun positiveSweep(from: Double, to: Double): Double {
     var sweep = to - from
     while (sweep <= 0.0) sweep += 2.0 * PI
     return sweep
+}
+
+private fun hyperbolicSine(value: Double): Double {
+    val positive = exp(value)
+    val negative = exp(-value)
+    return (positive - negative) / 2.0
+}
+
+private fun hyperbolicCosine(value: Double): Double {
+    val positive = exp(value)
+    val negative = exp(-value)
+    return (positive + negative) / 2.0
+}
+
+private fun asinh(value: Double): Double {
+    return ln(value + sqrt(value * value + 1.0))
 }
 
 private fun List<StepLitePoint>.orientedBetween(start: StepLitePoint, end: StepLitePoint): List<StepLitePoint> {

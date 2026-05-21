@@ -321,6 +321,27 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesHyperbolicEdgeCurvesAsLightweightPolylines() {
+        val result = StepLiteParser().parse(HyperbolaStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val hyperbola = document.entities.single()
+        assertTrue(hyperbola is StepLiteEntity.Polyline)
+        hyperbola as StepLiteEntity.Polyline
+        assertTrue(hyperbola.points.size > 8)
+        assertClose(2.0, hyperbola.points.first().x)
+        assertClose(0.0, hyperbola.points.first().y)
+        assertClose(2.2552519304127614, hyperbola.points[hyperbola.points.lastIndex / 2].x)
+        assertClose(0.5210953054937474, hyperbola.points[hyperbola.points.lastIndex / 2].y)
+        assertClose(3.0861612696304874, hyperbola.points.last().x)
+        assertClose(1.1752011936438014, hyperbola.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesBSplineEdgeCurvesAsLightweightPolylines() {
         val result = StepLiteParser().parse(BSplineStep.byteInputStream())
 
@@ -955,6 +976,32 @@ class StepLiteParserTest {
             #14=PARABOLA('',#13,2.);
             #20=CARTESIAN_POINT('',(0.,0.,0.));
             #21=CARTESIAN_POINT('',(8.,8.,0.));
+            #22=VERTEX_POINT('',#20);
+            #23=VERTEX_POINT('',#21);
+            #24=EDGE_CURVE('',#22,#23,#14,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val HyperbolaStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom hyperbola STEP fixture'),'2;1');
+            FILE_NAME('hyperbola.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Hyperbola Fixture','Hyperbola Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=DIRECTION('',(0.,0.,1.));
+            #12=DIRECTION('',(1.,0.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #14=HYPERBOLA('',#13,2.,1.);
+            #20=CARTESIAN_POINT('',(2.,0.,0.));
+            #21=CARTESIAN_POINT('',(3.0861612696304874,1.1752011936438014,0.));
             #22=VERTEX_POINT('',#20);
             #23=VERTEX_POINT('',#21);
             #24=EDGE_CURVE('',#22,#23,#14,.T.);
