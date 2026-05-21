@@ -244,6 +244,27 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun appliesPointTrimmedPolylineWrappersWhenParsingEdgeCurves() {
+        val result = StepLiteParser().parse(EdgePointTrimmedPolylineStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val polyline = document.entities.single()
+        assertTrue(polyline is StepLiteEntity.Polyline)
+        polyline as StepLiteEntity.Polyline
+        assertEquals(3, polyline.points.size)
+        assertClose(2.0, polyline.points.first().x)
+        assertClose(2.0, polyline.points.first().y)
+        assertClose(5.0, polyline.points[1].x)
+        assertClose(5.0, polyline.points[1].y)
+        assertClose(8.0, polyline.points.last().x)
+        assertClose(2.0, polyline.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesEllipticalEdgeCurvesAsLightweightPolylines() {
         val result = StepLiteParser().parse(EllipseStep.byteInputStream())
 
@@ -920,6 +941,27 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun emitsStandalonePointTrimmedPolylinesWithoutFullCurveFallback() {
+        val result = StepLiteParser().parse(StandalonePointTrimmedPolylineStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val polyline = document.entities.single()
+        assertTrue(polyline is StepLiteEntity.Polyline)
+        polyline as StepLiteEntity.Polyline
+        assertEquals(3, polyline.points.size)
+        assertClose(2.0, polyline.points.first().x)
+        assertClose(2.0, polyline.points.first().y)
+        assertClose(5.0, polyline.points[1].x)
+        assertClose(5.0, polyline.points[1].y)
+        assertClose(8.0, polyline.points.last().x)
+        assertClose(2.0, polyline.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun emitsStandaloneParameterTrimmedConicsWithoutEdgeRecords() {
         val result = StepLiteParser().parse(StandaloneParameterTrimmedConicStep.byteInputStream())
 
@@ -1477,6 +1519,32 @@ class StepLiteParserTest {
             #21=VERTEX_POINT('',#12);
             #30=POLYLINE('',(#10,#11,#12));
             #40=EDGE_CURVE('',#21,#20,#30,.F.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val EdgePointTrimmedPolylineStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom edge point trimmed polyline STEP fixture'),'2;1');
+            FILE_NAME('edge-point-trimmed-polyline.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Edge Point Trimmed Polyline Fixture','Edge Point Trimmed Polyline Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(5.,5.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #13=CARTESIAN_POINT('',(2.,2.,0.));
+            #14=CARTESIAN_POINT('',(8.,2.,0.));
+            #20=POLYLINE('',(#10,#11,#12));
+            #30=TRIMMED_CURVE('',#20,(#13),(#14),.T.,.CARTESIAN.);
+            #40=VERTEX_POINT('',#13);
+            #41=VERTEX_POINT('',#14);
+            #50=EDGE_CURVE('',#40,#41,#30,.T.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
@@ -2376,6 +2444,30 @@ class StepLiteParserTest {
             #31=CARTESIAN_POINT('',(7.5,3.75,0.));
             #40=TRIMMED_CURVE('',#20,(#30),(#31),.T.,.CARTESIAN.);
             #50=GEOMETRIC_CURVE_SET('',(#40));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StandalonePointTrimmedPolylineStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom standalone point trimmed polyline STEP fixture'),'2;1');
+            FILE_NAME('standalone-point-trimmed-polyline.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Standalone Point Trimmed Polyline Fixture','Standalone Point Trimmed Polyline Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(5.,5.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #13=CARTESIAN_POINT('',(2.,2.,0.));
+            #14=CARTESIAN_POINT('',(8.,2.,0.));
+            #20=POLYLINE('',(#10,#11,#12));
+            #30=TRIMMED_CURVE('',#20,(#13),(#14),.T.,.CARTESIAN.);
+            #40=GEOMETRIC_CURVE_SET('',(#30));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

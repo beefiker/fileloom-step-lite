@@ -982,6 +982,7 @@ class StepLiteParser(
                 lineRecords = lineRecords,
                 polylineCurves = polylineCurves
             )
+                ?.applyPointTrim(resolvedCurve)
                 ?.orientedBetween(
                     start = if (resolvedSameSense) basisStart else basisEnd,
                     end = if (resolvedSameSense) basisEnd else basisStart
@@ -995,6 +996,7 @@ class StepLiteParser(
         if (polylinePointIds != null) {
             val polylinePoints = polylinePointIds.mapNotNull(points::get)
                 .takeIf { it.size >= 2 }
+                ?.applyPointTrim(resolvedCurve)
                 ?.orientedBetween(
                     start = if (resolvedSameSense) basisStart else basisEnd,
                     end = if (resolvedSameSense) basisEnd else basisStart
@@ -1069,6 +1071,16 @@ class StepLiteParser(
             trimStartParameter = trimStartParameter,
             trimEndParameter = trimEndParameter
         )
+    }
+
+    private fun List<StepLitePoint>.applyPointTrim(resolvedCurve: ResolvedCurveRecord): List<StepLitePoint>? {
+        val trimStart = resolvedCurve.trimStartPoint
+        val trimEnd = resolvedCurve.trimEndPoint
+        return if (trimStart != null && trimEnd != null) {
+            trimmedBetween(start = trimStart, end = trimEnd)
+        } else {
+            this
+        }
     }
 
     private fun CurveWrapperRecord.toStandaloneEntity(
@@ -1480,7 +1492,7 @@ class StepLiteParser(
             lineRecords = lineRecords,
             polylineCurves = polylineCurves,
             depth = depth + 1
-        )?.orientedBetween(start = start, end = end)
+        )?.trimmedBetween(start = start, end = end)
     }
 
     private fun Int.toParameterTrimmedBoundedCurvePoints(
