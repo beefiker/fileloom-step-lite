@@ -146,6 +146,7 @@ class StepLiteParser(
         val placements = linkedMapOf<Int, AxisPlacementRecord>()
         val circles = linkedMapOf<Int, CircleRecord>()
         val ellipses = linkedMapOf<Int, EllipseRecord>()
+        val parabolas = linkedMapOf<Int, ParabolaRecord>()
         val splines = linkedMapOf<Int, BSplineRecord>()
         val curveWrappers = linkedMapOf<Int, CurveWrapperRecord>()
         val lineCurves = linkedSetOf<Int>()
@@ -197,6 +198,10 @@ class StepLiteParser(
                     val ellipse = record.args.toEllipseRecord()
                     if (ellipse != null) ellipses[record.id] = ellipse
                 }
+                "PARABOLA" -> {
+                    val parabola = record.args.toParabolaRecord()
+                    if (parabola != null) parabolas[record.id] = parabola
+                }
                 "LINE" -> {
                     lineCurves += record.id
                 }
@@ -245,6 +250,8 @@ class StepLiteParser(
                     if (circle != null) circles[record.id] = circle
                     val ellipse = record.args.entityArgs("ELLIPSE")?.toEllipseRecord()
                     if (ellipse != null) ellipses[record.id] = ellipse
+                    val parabola = record.args.entityArgs("PARABOLA")?.toParabolaRecord()
+                    if (parabola != null) parabolas[record.id] = parabola
                     val trimmedCurve = record.args.entityArgs("TRIMMED_CURVE")?.toTrimmedCurveRecord()
                     if (trimmedCurve != null) curveWrappers[record.id] = trimmedCurve
                     val surfaceCurve = record.args.entityArgs("SURFACE_CURVE")?.toBasisCurveWrapperRecord()
@@ -302,6 +309,7 @@ class StepLiteParser(
                     placements = placements,
                     circles = circles,
                     ellipses = ellipses,
+                    parabolas = parabolas,
                     splines = splines,
                     curveWrappers = curveWrappers,
                     lineCurves = lineCurves,
@@ -360,6 +368,11 @@ class StepLiteParser(
         val minorRadius: Double
     )
 
+    private data class ParabolaRecord(
+        val placementId: Int,
+        val focalDistance: Double
+    )
+
     private data class BSplineRecord(
         val degree: Int,
         val controlPointIds: List<Int>,
@@ -392,6 +405,7 @@ class StepLiteParser(
         placements: Map<Int, AxisPlacementRecord>,
         circles: Map<Int, CircleRecord>,
         ellipses: Map<Int, EllipseRecord>,
+        parabolas: Map<Int, ParabolaRecord>,
         splines: Map<Int, BSplineRecord>,
         curveWrappers: Map<Int, CurveWrapperRecord>,
         lineCurves: Set<Int>,
@@ -450,6 +464,21 @@ class StepLiteParser(
                     start = ellipseStart,
                     end = ellipseEnd,
                     closed = start.samePositionAs(end)
+                ),
+                sourceId = sourceId
+            )
+        }
+
+        val parabola = parabolas[resolvedCurveId]
+        val parabolaPlacement = parabola?.let { placements[it.placementId] }
+        val parabolaCenter = parabolaPlacement?.let { points[it.locationPointId] }
+        if (parabola != null && parabolaPlacement != null && parabolaCenter != null) {
+            return StepLiteEntity.Polyline(
+                points = parabola.toPolylinePoints(
+                    center = parabolaCenter,
+                    basis = parabolaPlacement.toBasis(directions),
+                    start = if (resolvedSameSense) start else end,
+                    end = if (resolvedSameSense) end else start
                 ),
                 sourceId = sourceId
             )
@@ -538,6 +567,26 @@ class StepLiteParser(
             closed = closed,
             segmentCount = EllipseSegments
         )
+    }
+
+    private fun ParabolaRecord.toPolylinePoints(
+        center: StepLitePoint,
+        basis: PlacementBasis,
+        start: StepLitePoint,
+        end: StepLitePoint
+    ): List<StepLitePoint> {
+        val startParameter = start.parabolaParameterFrom(center, basis, focalDistance)
+        val endParameter = end.parabolaParameterFrom(center, basis, focalDistance)
+        return List(ParabolaSegments + 1) { index ->
+            val parameter = startParameter + (endParameter - startParameter) * index / ParabolaSegments
+            val majorOffset = focalDistance * parameter * parameter
+            val minorOffset = 2.0 * focalDistance * parameter
+            StepLitePoint(
+                x = center.x + basis.xAxis.x * majorOffset + basis.yAxis.x * minorOffset,
+                y = center.y + basis.xAxis.y * majorOffset + basis.yAxis.y * minorOffset,
+                z = center.z + basis.xAxis.z * majorOffset + basis.yAxis.z * minorOffset
+            )
+        }
     }
 
     private fun samplePlacedConic(
@@ -749,6 +798,16 @@ class StepLiteParser(
         )
     }
 
+    private fun String.toParabolaRecord(): ParabolaRecord? {
+        val placementId = refs().firstOrNull() ?: return null
+        val focalDistance = topLevelNumbers().lastOrNull() ?: return null
+        if (focalDistance <= 0.0) return null
+        return ParabolaRecord(
+            placementId = placementId,
+            focalDistance = focalDistance
+        )
+    }
+
     private fun String.toPolylineRecord(): List<Int>? {
         return refs().takeIf { it.size >= 2 }
     }
@@ -803,6 +862,7 @@ class StepLiteParser(
         private const val DefaultMaxEntities = 100_000
         private const val CircleSegments = 32
         private const val EllipseSegments = 32
+        private const val ParabolaSegments = 32
         private const val SplineSegments = 32
         private const val MaxCurveWrapperDepth = 8
         private val DefaultXAxis = DirectionRecord(1.0, 0.0, 0.0)
@@ -1235,6 +1295,19 @@ private fun StepLitePoint.ellipseAngleFrom(
         z = z - center.z
     )
     return atan2(relative.dot(basis.yAxis) / minorRadius, relative.dot(basis.xAxis) / majorRadius)
+}
+
+private fun StepLitePoint.parabolaParameterFrom(
+    center: StepLitePoint,
+    basis: PlacementBasis,
+    focalDistance: Double
+): Double {
+    val relative = DirectionRecord(
+        x = x - center.x,
+        y = y - center.y,
+        z = z - center.z
+    )
+    return relative.dot(basis.yAxis) / (2.0 * focalDistance)
 }
 
 private fun positiveSweep(from: Double, to: Double): Double {
