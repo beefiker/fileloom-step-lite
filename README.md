@@ -41,4 +41,37 @@ when (result) {
 ./gradlew publishToMavenLocal
 ```
 
-The module is configured with `maven-publish`, `group = "dev.jaeyoung"`, and artifact ID `fileloom-step-lite`.
+The module is configured with `maven-publish`, `signing`, `group = "dev.jaeyoung"`, and artifact ID `fileloom-step-lite`.
+
+## Maven Central
+
+Create and verify the `dev.jaeyoung` namespace in Central Portal before running a remote publish. The build uses only Gradle's built-in publishing/signing plugins.
+
+Set credentials with Gradle properties or environment variables:
+
+```bash
+export MAVEN_CENTRAL_USERNAME="..."
+export MAVEN_CENTRAL_PASSWORD="..."
+export SIGNING_KEY="$(cat private-key.asc)"
+export SIGNING_PASSWORD="..."
+```
+
+Publish a snapshot:
+
+```bash
+./gradlew publishAllPublicationsToCentralSnapshotsRepository
+```
+
+Publish a release candidate:
+
+```bash
+./gradlew -PreleaseVersion=0.1.0 publishAllPublicationsToCentralReleaseRepository
+```
+
+Release artifacts published through the Central Portal OSSRH Staging API still need the Central Portal deployment flow after upload.
+
+Publishing references:
+
+- Central Portal Gradle guidance: https://central.sonatype.org/publish/publish-portal-gradle/
+- Central Portal OSSRH Staging API: https://central.sonatype.org/publish/publish-portal-ossrh-staging-api/
+- Central Portal snapshots: https://central.sonatype.org/publish/publish-portal-snapshots/
