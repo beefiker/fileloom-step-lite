@@ -815,17 +815,40 @@ class StepLiteParser(
 
     private fun String.toComplexBSplineRecord(): BSplineRecord? {
         val curveArgs = entityArgs("B_SPLINE_CURVE") ?: return null
-        val knotArgs = entityArgs("B_SPLINE_CURVE_WITH_KNOTS") ?: return null
         val degree = curveArgs.topLevelNumbers().firstOrNull()?.toInt() ?: return null
         if (degree < 1) return null
         val controlPointIds = curveArgs.refs().takeIf { it.size > degree } ?: return null
         val weights = entityArgs("RATIONAL_B_SPLINE_CURVE")
             ?.deepNumberTuples()
             ?.lastOrNull()
+        val knotArgs = entityArgs("B_SPLINE_CURVE_WITH_KNOTS")
+        if (knotArgs == null && entityArgs("BEZIER_CURVE") != null) {
+            return toBezierBSplineRecord(
+                degree = degree,
+                controlPointIds = controlPointIds,
+                weights = weights
+            )
+        }
+        if (knotArgs == null) return null
         return knotArgs.toBSplineRecord(
             degree = degree,
             controlPointIds = controlPointIds,
             numberTuples = knotArgs.topLevelNumberTuples(),
+            weights = weights
+        )
+    }
+
+    private fun toBezierBSplineRecord(
+        degree: Int,
+        controlPointIds: List<Int>,
+        weights: List<Double>?
+    ): BSplineRecord? {
+        if (controlPointIds.size != degree + 1) return null
+        if (weights != null && (weights.size != controlPointIds.size || weights.any { it <= 0.0 })) return null
+        return BSplineRecord(
+            degree = degree,
+            controlPointIds = controlPointIds,
+            knots = List(degree + 1) { 0.0 } + List(degree + 1) { 1.0 },
             weights = weights
         )
     }
