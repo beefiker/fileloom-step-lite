@@ -597,7 +597,8 @@ class StepLiteParser(
 
     private data class ResolvedCurveRecord(
         val curveId: Int,
-        val sameSense: Boolean
+        val sameSense: Boolean,
+        val offset: DirectionRecord? = null
     )
 
     private fun LineRecord.toStandaloneEntity(
@@ -648,17 +649,24 @@ class StepLiteParser(
         lineRecords: Map<Int, LineRecord>,
         polylineCurves: Map<Int, List<Int>>
     ): StepLiteEntity? {
-        val resolvedCurve = resolveCurve(curveWrappers)
+        val resolvedCurve = resolveCurve(curveWrappers, directions) ?: return null
         val resolvedCurveId = resolvedCurve.curveId
         val resolvedSameSense = resolvedCurve.sameSense
+        val resolvedOffset = resolvedCurve.offset
+        val basisStart = resolvedOffset?.let { start.offsetBy(it, -1.0) } ?: start
+        val basisEnd = resolvedOffset?.let { end.offsetBy(it, -1.0) } ?: end
+
+        fun StepLiteEntity.withResolvedOffset(): StepLiteEntity {
+            return resolvedOffset?.let { offsetBy(it, 1.0) } ?: this
+        }
 
         val circle = circles[resolvedCurveId]
         val circlePlacement = circle?.let { placements[it.placementId] }
         val center = circlePlacement?.let { points[it.locationPointId] }
         if (circle != null && circlePlacement != null && center != null) {
             val circleBasis = circlePlacement.toBasis(directions)
-            val arcStart = if (resolvedSameSense) start else end
-            val arcEnd = if (resolvedSameSense) end else start
+            val arcStart = if (resolvedSameSense) basisStart else basisEnd
+            val arcEnd = if (resolvedSameSense) basisEnd else basisStart
             if (!circleBasis.isFlatInPreviewPlane()) {
                 return StepLiteEntity.Polyline(
                     points = circle.toPolylinePoints(
@@ -666,17 +674,17 @@ class StepLiteParser(
                         basis = circleBasis,
                         start = arcStart,
                         end = arcEnd,
-                        closed = start.samePositionAs(end)
+                        closed = basisStart.samePositionAs(basisEnd)
                     ),
                     sourceId = sourceId
-                )
+                ).withResolvedOffset()
             }
-            return if (start.samePositionAs(end)) {
+            return if (basisStart.samePositionAs(basisEnd)) {
                 StepLiteEntity.Circle(
                     center = center,
                     radius = circle.radius,
                     sourceId = sourceId
-                )
+                ).withResolvedOffset()
             } else {
                 StepLiteEntity.Arc(
                     center = center,
@@ -684,7 +692,7 @@ class StepLiteParser(
                     startAngleRadians = arcStart.angleFrom(center),
                     endAngleRadians = arcEnd.angleFrom(center),
                     sourceId = sourceId
-                )
+                ).withResolvedOffset()
             }
         }
 
@@ -692,18 +700,18 @@ class StepLiteParser(
         val ellipsePlacement = ellipse?.let { placements[it.placementId] }
         val ellipseCenter = ellipsePlacement?.let { points[it.locationPointId] }
         if (ellipse != null && ellipsePlacement != null && ellipseCenter != null) {
-            val ellipseStart = if (resolvedSameSense) start else end
-            val ellipseEnd = if (resolvedSameSense) end else start
+            val ellipseStart = if (resolvedSameSense) basisStart else basisEnd
+            val ellipseEnd = if (resolvedSameSense) basisEnd else basisStart
             return StepLiteEntity.Polyline(
                 points = ellipse.toPolylinePoints(
                     center = ellipseCenter,
                     basis = ellipsePlacement.toBasis(directions),
                     start = ellipseStart,
                     end = ellipseEnd,
-                    closed = start.samePositionAs(end)
+                    closed = basisStart.samePositionAs(basisEnd)
                 ),
                 sourceId = sourceId
-            )
+            ).withResolvedOffset()
         }
 
         val parabola = parabolas[resolvedCurveId]
@@ -714,11 +722,11 @@ class StepLiteParser(
                 points = parabola.toPolylinePoints(
                     center = parabolaCenter,
                     basis = parabolaPlacement.toBasis(directions),
-                    start = if (resolvedSameSense) start else end,
-                    end = if (resolvedSameSense) end else start
+                    start = if (resolvedSameSense) basisStart else basisEnd,
+                    end = if (resolvedSameSense) basisEnd else basisStart
                 ),
                 sourceId = sourceId
-            )
+            ).withResolvedOffset()
         }
 
         val hyperbola = hyperbolas[resolvedCurveId]
@@ -729,22 +737,22 @@ class StepLiteParser(
                 points = hyperbola.toPolylinePoints(
                     center = hyperbolaCenter,
                     basis = hyperbolaPlacement.toBasis(directions),
-                    start = if (resolvedSameSense) start else end,
-                    end = if (resolvedSameSense) end else start
+                    start = if (resolvedSameSense) basisStart else basisEnd,
+                    end = if (resolvedSameSense) basisEnd else basisStart
                 ),
                 sourceId = sourceId
-            )
+            ).withResolvedOffset()
         }
 
         val spline = splines[resolvedCurveId]
         if (spline != null) {
             val splinePoints = spline.toPolylinePoints(points)
                 ?.orientedBetween(
-                    start = if (resolvedSameSense) start else end,
-                    end = if (resolvedSameSense) end else start
+                    start = if (resolvedSameSense) basisStart else basisEnd,
+                    end = if (resolvedSameSense) basisEnd else basisStart
                 )
             return splinePoints?.let {
-                StepLiteEntity.Polyline(points = it, sourceId = sourceId)
+                StepLiteEntity.Polyline(points = it, sourceId = sourceId).withResolvedOffset()
             }
         }
 
@@ -767,11 +775,11 @@ class StepLiteParser(
                 polylineCurves = polylineCurves
             )
                 ?.orientedBetween(
-                    start = if (resolvedSameSense) start else end,
-                    end = if (resolvedSameSense) end else start
+                    start = if (resolvedSameSense) basisStart else basisEnd,
+                    end = if (resolvedSameSense) basisEnd else basisStart
                 )
             return compositePoints?.let {
-                StepLiteEntity.Polyline(points = it, sourceId = sourceId)
+                StepLiteEntity.Polyline(points = it, sourceId = sourceId).withResolvedOffset()
             }
         }
 
@@ -780,34 +788,46 @@ class StepLiteParser(
             val polylinePoints = polylinePointIds.mapNotNull(points::get)
                 .takeIf { it.size >= 2 }
                 ?.orientedBetween(
-                    start = if (resolvedSameSense) start else end,
-                    end = if (resolvedSameSense) end else start
+                    start = if (resolvedSameSense) basisStart else basisEnd,
+                    end = if (resolvedSameSense) basisEnd else basisStart
                 )
             return polylinePoints?.let {
-                StepLiteEntity.Polyline(points = it, sourceId = sourceId)
+                StepLiteEntity.Polyline(points = it, sourceId = sourceId).withResolvedOffset()
             }
         }
 
         return if (resolvedCurveId in lineCurves) {
             StepLiteEntity.Line(
-                start = start,
-                end = end,
+                start = basisStart,
+                end = basisEnd,
                 sourceId = sourceId
-            )
+            ).withResolvedOffset()
         } else {
             null
         }
     }
 
-    private fun EdgeCurveRecord.resolveCurve(curveWrappers: Map<Int, CurveWrapperRecord>): ResolvedCurveRecord {
+    private fun EdgeCurveRecord.resolveCurve(
+        curveWrappers: Map<Int, CurveWrapperRecord>,
+        directions: Map<Int, DirectionRecord>
+    ): ResolvedCurveRecord? {
         var id = curveId
         var sense = sameSense
+        var offset: DirectionRecord? = null
         repeat(MaxCurveWrapperDepth) {
-            val wrapper = curveWrappers[id] ?: return ResolvedCurveRecord(id, sense)
+            val wrapper = curveWrappers[id] ?: return ResolvedCurveRecord(id, sense, offset)
+            val offsetDistance = wrapper.offsetDistance
+            val offsetDirectionId = wrapper.offsetDirectionId
+            if (offsetDistance != null || offsetDirectionId != null) {
+                val directionId = offsetDirectionId ?: return null
+                val direction = directions[directionId]?.normalizedOrNull() ?: return null
+                val delta = direction.scale(offsetDistance ?: return null)
+                offset = offset?.plus(delta) ?: delta
+            }
             id = wrapper.basisCurveId
             sense = sense == wrapper.sameSense
         }
-        return ResolvedCurveRecord(id, sense)
+        return ResolvedCurveRecord(id, sense, offset)
     }
 
     private fun CurveWrapperRecord.toStandaloneEntity(
@@ -2170,6 +2190,14 @@ private fun DirectionRecord.minus(other: DirectionRecord): DirectionRecord {
         x = x - other.x,
         y = y - other.y,
         z = z - other.z
+    )
+}
+
+private fun DirectionRecord.plus(other: DirectionRecord): DirectionRecord {
+    return DirectionRecord(
+        x = x + other.x,
+        y = y + other.y,
+        z = z + other.z
     )
 }
 

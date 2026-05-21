@@ -13,7 +13,7 @@ This parser is intentionally not an OpenCascade binding and does not bundle WASM
 - Counts unsupported curve records instead of flattening them into misleading straight lines
 - Emits unreferenced finite `VECTOR`-backed `LINE`, bounded `POLYLINE`, B-spline, composite, `TRIMMED_CURVE`, `SURFACE_CURVE`, `SEAM_CURVE`, `OFFSET_CURVE_3D`, full `CIRCLE`, and full `ELLIPSE` curves for wireframe/geometric-set style STEP exports without `EDGE_CURVE` topology
 - Honors `EDGE_CURVE` same-sense direction for circular arcs, polylines, sampled ellipses, and sampled B-splines
-- Resolves `TRIMMED_CURVE`, `SURFACE_CURVE`, and `SEAM_CURVE` wrappers to their lightweight basis curves before preview conversion
+- Resolves `TRIMMED_CURVE`, `SURFACE_CURVE`, `SEAM_CURVE`, and `OFFSET_CURVE_3D` wrappers to their lightweight basis curves before preview conversion
 - Applies `AXIS2_PLACEMENT_3D` direction/ref-direction axes when sampling ellipses and non-XY circles
 - Has no runtime dependencies beyond the Kotlin/JDK standard libraries
 - Publishes as `dev.jaeyoung:fileloom-step-lite`
