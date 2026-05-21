@@ -252,6 +252,18 @@ class StepLiteParser(
                     val spline = record.args.toSimpleBSplineRecord()
                     if (spline != null) splines[record.id] = spline
                 }
+                "BEZIER_CURVE" -> {
+                    val spline = record.args.toSimpleBezierRecord()
+                    if (spline != null) splines[record.id] = spline
+                }
+                "QUASI_UNIFORM_CURVE" -> {
+                    val spline = record.args.toSimpleQuasiUniformRecord()
+                    if (spline != null) splines[record.id] = spline
+                }
+                "UNIFORM_CURVE" -> {
+                    val spline = record.args.toSimpleUniformRecord()
+                    if (spline != null) splines[record.id] = spline
+                }
                 "TRIMMED_CURVE" -> {
                     val trimmedCurve = record.args.toTrimmedCurveRecord()
                     if (trimmedCurve != null) curveWrappers[record.id] = trimmedCurve
@@ -2082,6 +2094,39 @@ class StepLiteParser(
         if (degree < 1) return null
         val controlPointIds = refs().takeIf { it.size > degree } ?: return null
         return toQuasiUniformBSplineRecord(
+            degree = degree,
+            controlPointIds = controlPointIds,
+            weights = null
+        )
+    }
+
+    private fun String.toSimpleBezierRecord(): BSplineRecord? {
+        val degree = topLevelNumbers().firstOrNull()?.toInt() ?: return null
+        if (degree < 1) return null
+        val controlPointIds = refs().takeIf { it.size > degree } ?: return null
+        return toBezierBSplineRecord(
+            degree = degree,
+            controlPointIds = controlPointIds,
+            weights = null
+        )
+    }
+
+    private fun String.toSimpleQuasiUniformRecord(): BSplineRecord? {
+        val degree = topLevelNumbers().firstOrNull()?.toInt() ?: return null
+        if (degree < 1) return null
+        val controlPointIds = refs().takeIf { it.size > degree } ?: return null
+        return toQuasiUniformBSplineRecord(
+            degree = degree,
+            controlPointIds = controlPointIds,
+            weights = null
+        )
+    }
+
+    private fun String.toSimpleUniformRecord(): BSplineRecord? {
+        val degree = topLevelNumbers().firstOrNull()?.toInt() ?: return null
+        if (degree < 1) return null
+        val controlPointIds = refs().takeIf { it.size > degree } ?: return null
+        return toUniformBSplineRecord(
             degree = degree,
             controlPointIds = controlPointIds,
             weights = null

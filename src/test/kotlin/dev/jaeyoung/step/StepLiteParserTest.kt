@@ -485,6 +485,69 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesSimpleBezierCurveRecordsAsLightweightPolylines() {
+        val result = StepLiteParser().parse(SimpleBezierStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val curve = document.entities.single()
+        assertTrue(curve is StepLiteEntity.Polyline)
+        curve as StepLiteEntity.Polyline
+        assertTrue(curve.points.size > 8)
+        assertClose(0.0, curve.points.first().x)
+        assertClose(0.0, curve.points.first().y)
+        assertClose(5.0, curve.points[curve.points.lastIndex / 2].x)
+        assertClose(5.0, curve.points[curve.points.lastIndex / 2].y)
+        assertClose(10.0, curve.points.last().x)
+        assertClose(0.0, curve.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
+    fun parsesSimpleQuasiUniformCurveRecordsAsLightweightPolylines() {
+        val result = StepLiteParser().parse(SimpleQuasiUniformStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val curve = document.entities.single()
+        assertTrue(curve is StepLiteEntity.Polyline)
+        curve as StepLiteEntity.Polyline
+        assertTrue(curve.points.size > 8)
+        assertClose(0.0, curve.points.first().x)
+        assertClose(0.0, curve.points.first().y)
+        assertClose(5.0, curve.points[curve.points.lastIndex / 2].x)
+        assertClose(6.0, curve.points[curve.points.lastIndex / 2].y)
+        assertClose(10.0, curve.points.last().x)
+        assertClose(0.0, curve.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
+    fun parsesSimpleUniformCurveRecordsAsLightweightPolylines() {
+        val result = StepLiteParser().parse(SimpleUniformStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val curve = document.entities.single()
+        assertTrue(curve is StepLiteEntity.Polyline)
+        curve as StepLiteEntity.Polyline
+        assertTrue(curve.points.size > 8)
+        assertClose(1.5, curve.points.first().x)
+        assertClose(3.0, curve.points.first().y)
+        assertClose(5.0, curve.points[curve.points.lastIndex / 2].x)
+        assertClose(6.0, curve.points[curve.points.lastIndex / 2].y)
+        assertClose(8.5, curve.points.last().x)
+        assertClose(3.0, curve.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun honorsAxisPlacementRefDirectionWhenSamplingEllipses() {
         val result = StepLiteParser().parse(RotatedEllipseStep.byteInputStream())
 
@@ -2017,6 +2080,71 @@ class StepLiteParserTest {
             #20=CARTESIAN_POINT('',(14.,10.,0.));
             #21=VERTEX_POINT('',#20);
             #22=EDGE_CURVE('',#21,#21,#14,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val SimpleBezierStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom simple Bezier STEP fixture'),'2;1');
+            FILE_NAME('simple-bezier.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Simple Bezier Fixture','Simple Bezier Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(5.,10.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=BEZIER_CURVE('',2,(#10,#11,#12),.UNSPECIFIED.,.F.,.F.);
+            #30=GEOMETRIC_CURVE_SET('',(#20));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val SimpleQuasiUniformStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom simple quasi-uniform STEP fixture'),'2;1');
+            FILE_NAME('simple-quasi-uniform.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Simple Quasi Uniform Fixture','Simple Quasi Uniform Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(3.,6.,0.));
+            #12=CARTESIAN_POINT('',(7.,6.,0.));
+            #13=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=QUASI_UNIFORM_CURVE('',2,(#10,#11,#12,#13),.UNSPECIFIED.,.F.,.F.);
+            #30=GEOMETRIC_CURVE_SET('',(#20));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val SimpleUniformStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom simple uniform STEP fixture'),'2;1');
+            FILE_NAME('simple-uniform.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Simple Uniform Fixture','Simple Uniform Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(3.,6.,0.));
+            #12=CARTESIAN_POINT('',(7.,6.,0.));
+            #13=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=UNIFORM_CURVE('',2,(#10,#11,#12,#13),.UNSPECIFIED.,.F.,.F.);
+            #30=GEOMETRIC_CURVE_SET('',(#20));
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
