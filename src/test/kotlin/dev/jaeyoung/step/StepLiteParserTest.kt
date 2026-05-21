@@ -453,6 +453,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsFractionalBSplineDegreesInsteadOfTruncatingThem() {
+        val result = StepLiteParser().parse(FractionalBSplineDegreeStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun appliesParameterTrimmedBSplineWrappersWhenParsingEdgeCurves() {
         val result = StepLiteParser().parse(EdgeParameterTrimmedBSplineStep.byteInputStream())
 
@@ -2058,6 +2068,29 @@ class StepLiteParserTest {
             #20=VERTEX_POINT('',#10);
             #21=VERTEX_POINT('',#12);
             #30=B_SPLINE_CURVE_WITH_KNOTS('',2,(#10,#11,#12),.UNSPECIFIED.,.F.,.F.,(3.5,3.5),(0.,1.),.UNSPECIFIED.);
+            #31=EDGE_CURVE('',#20,#21,#30,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val FractionalBSplineDegreeStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom fractional B-spline degree STEP fixture'),'2;1');
+            FILE_NAME('fractional-bspline-degree.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Fractional B-spline Degree Fixture','Fractional B-spline Degree Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(5.,10.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#12);
+            #30=B_SPLINE_CURVE_WITH_KNOTS('',2.5,(#10,#11,#12),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);
             #31=EDGE_CURVE('',#20,#21,#30,.T.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
