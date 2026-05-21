@@ -3057,7 +3057,7 @@ private fun StepLiteEntity.bounds(): StepLiteBounds {
 }
 
 private fun StepLiteEntity.hasFiniteGeometry(): Boolean {
-    return when (this) {
+    val geometryIsFinite = when (this) {
         is StepLiteEntity.Line -> start.isFinite() && end.isFinite()
         is StepLiteEntity.Polyline -> points.all { it.isFinite() }
         is StepLiteEntity.Circle -> center.isFinite() && radius.isFinite()
@@ -3066,6 +3066,11 @@ private fun StepLiteEntity.hasFiniteGeometry(): Boolean {
             startAngleRadians.isFinite() &&
             endAngleRadians.isFinite()
     }
+    return geometryIsFinite && bounds().isFinite()
+}
+
+private fun StepLiteBounds.isFinite(): Boolean {
+    return min.isFinite() && max.isFinite()
 }
 
 private fun StepLitePoint.isFinite(): Boolean {
