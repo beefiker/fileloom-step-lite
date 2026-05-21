@@ -53,6 +53,7 @@ class StepLitePublishingTest {
         assertTrue(readme.contains("MAVEN_CENTRAL_PASSWORD"))
         assertTrue(readme.contains("SIGNING_KEY"))
         assertTrue(readme.contains("SIGNING_PASSWORD"))
+        assertTrue(readme.contains("Enable SNAPSHOTs"))
         assertTrue(readme.contains("publishAllPublicationsToCentralSnapshotsRepository"))
         assertTrue(readme.contains("publishAllPublicationsToCentralReleaseRepository"))
         assertTrue(readme.contains("release_version` such as `0.1.0`"))

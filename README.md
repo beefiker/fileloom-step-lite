@@ -52,7 +52,7 @@ The `check` lifecycle runs `checkPublishedArtifactFootprint`, which keeps the pa
 
 ## Maven Central
 
-Create and verify the `dev.jaeyoung` namespace in Central Portal before running a remote publish. The build uses only Gradle's built-in publishing/signing plugins.
+Create and verify the `dev.jaeyoung` namespace in Central Portal before running a remote publish. If you want to publish snapshots before the first release, open that namespace in Central Portal and select `Enable SNAPSHOTs` first. The build uses only Gradle's built-in publishing/signing plugins.
 
 Create a Central Portal user token and set its username/password as Gradle properties or environment variables:
 
