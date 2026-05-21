@@ -2312,7 +2312,7 @@ class StepLiteParser(
             ?: return null
         val knotValues = numberTuples.lastOrNull() ?: return null
         if (multiplicities.size != knotValues.size) return null
-        if (knotValues.zipWithNext().any { (current, next) -> next < current }) return null
+        if (knotValues.zipWithNext().any { (current, next) -> next <= current }) return null
         if (weights != null && (weights.size != controlPointIds.size || weights.any { it <= 0.0 })) return null
         val expandedKnots = ArrayList<Double>()
         knotValues.forEachIndexed { index, knot ->
