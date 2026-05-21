@@ -829,6 +829,13 @@ class StepLiteParser(
                 weights = weights
             )
         }
+        if (knotArgs == null && entityArgs("QUASI_UNIFORM_CURVE") != null) {
+            return toQuasiUniformBSplineRecord(
+                degree = degree,
+                controlPointIds = controlPointIds,
+                weights = weights
+            )
+        }
         if (knotArgs == null) return null
         return knotArgs.toBSplineRecord(
             degree = degree,
@@ -849,6 +856,25 @@ class StepLiteParser(
             degree = degree,
             controlPointIds = controlPointIds,
             knots = List(degree + 1) { 0.0 } + List(degree + 1) { 1.0 },
+            weights = weights
+        )
+    }
+
+    private fun toQuasiUniformBSplineRecord(
+        degree: Int,
+        controlPointIds: List<Int>,
+        weights: List<Double>?
+    ): BSplineRecord? {
+        if (controlPointIds.size <= degree) return null
+        if (weights != null && (weights.size != controlPointIds.size || weights.any { it <= 0.0 })) return null
+        val interiorCount = controlPointIds.size - degree - 1
+        val endKnot = (interiorCount + 1).toDouble()
+        return BSplineRecord(
+            degree = degree,
+            controlPointIds = controlPointIds,
+            knots = List(degree + 1) { 0.0 } +
+                (1..interiorCount).map { it.toDouble() } +
+                List(degree + 1) { endKnot },
             weights = weights
         )
     }
