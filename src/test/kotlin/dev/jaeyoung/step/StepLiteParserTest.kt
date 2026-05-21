@@ -144,6 +144,38 @@ class StepLiteParserTest {
         assertEquals(1, document.unsupportedEntityCount)
     }
 
+    @Test
+    fun honorsEdgeCurveSameSenseWhenParsingCircularArcs() {
+        val result = StepLiteParser().parse(ReversedSameSenseArcStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val arc = document.entities.single()
+        assertTrue(arc is StepLiteEntity.Arc)
+        arc as StepLiteEntity.Arc
+        assertClose(0.0, arc.startAngleRadians)
+        assertClose(PI / 2.0, arc.endAngleRadians)
+    }
+
+    @Test
+    fun honorsEdgeCurveSameSenseWhenParsingPolylineCurves() {
+        val result = StepLiteParser().parse(ReversedSameSensePolylineStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val polyline = document.entities.single()
+        assertTrue(polyline is StepLiteEntity.Polyline)
+        polyline as StepLiteEntity.Polyline
+        assertClose(0.0, polyline.points.first().x)
+        assertClose(0.0, polyline.points.first().y)
+        assertClose(10.0, polyline.points.last().x)
+        assertClose(0.0, polyline.points.last().y)
+    }
+
     private fun assertClose(expected: Double, actual: Double) {
         assertEquals(expected, actual, 0.000001)
     }
@@ -333,6 +365,55 @@ class StepLiteParserTest {
             #41=EDGE_CURVE('',#21,#23,#31,.T.);
             #90=VECTOR('',#91,1.);
             #91=DIRECTION('',(1.,0.,0.));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val ReversedSameSenseArcStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom reversed arc STEP fixture'),'2;1');
+            FILE_NAME('reverse-arc.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Reversed Arc Fixture','Reversed Arc Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(5.,5.,0.));
+            #11=DIRECTION('',(0.,0.,1.));
+            #12=DIRECTION('',(1.,0.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #14=CIRCLE('',#13,2.5);
+            #20=CARTESIAN_POINT('',(7.5,5.,0.));
+            #21=CARTESIAN_POINT('',(5.,7.5,0.));
+            #22=VERTEX_POINT('',#20);
+            #23=VERTEX_POINT('',#21);
+            #24=EDGE_CURVE('',#23,#22,#14,.F.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val ReversedSameSensePolylineStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom reversed polyline STEP fixture'),'2;1');
+            FILE_NAME('reverse-polyline.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Reversed Polyline Fixture','Reversed Polyline Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(5.,8.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#12);
+            #30=POLYLINE('',(#10,#11,#12));
+            #40=EDGE_CURVE('',#21,#20,#30,.F.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

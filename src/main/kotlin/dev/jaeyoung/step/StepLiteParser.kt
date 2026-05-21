@@ -183,7 +183,13 @@ class StepLiteParser(
                 "EDGE_CURVE" -> {
                     val refs = record.args.refs()
                     if (refs.size >= 3) {
-                        edges += EdgeCurveRecord(record.id, refs[0], refs[1], refs[2])
+                        edges += EdgeCurveRecord(
+                            sourceId = record.id,
+                            startVertexId = refs[0],
+                            endVertexId = refs[1],
+                            curveId = refs[2],
+                            sameSense = record.args.lastTopLevelLogical() ?: true
+                        )
                     } else {
                         unsupported += 1
                     }
@@ -242,7 +248,8 @@ class StepLiteParser(
         val sourceId: Int,
         val startVertexId: Int,
         val endVertexId: Int,
-        val curveId: Int
+        val curveId: Int,
+        val sameSense: Boolean
     )
 
     private data class AxisPlacementRecord(
@@ -268,6 +275,8 @@ class StepLiteParser(
             ?.let { placements[it.placementId] }
             ?.let { points[it.locationPointId] }
         if (circle != null && center != null) {
+            val arcStart = if (sameSense) start else end
+            val arcEnd = if (sameSense) end else start
             return if (start.samePositionAs(end)) {
                 StepLiteEntity.Circle(
                     center = center,
@@ -278,8 +287,8 @@ class StepLiteParser(
                 StepLiteEntity.Arc(
                     center = center,
                     radius = circle.radius,
-                    startAngleRadians = start.angleFrom(center),
-                    endAngleRadians = end.angleFrom(center),
+                    startAngleRadians = arcStart.angleFrom(center),
+                    endAngleRadians = arcEnd.angleFrom(center),
                     sourceId = sourceId
                 )
             }
@@ -289,7 +298,10 @@ class StepLiteParser(
         if (polylinePointIds != null) {
             val polylinePoints = polylinePointIds.mapNotNull(points::get)
                 .takeIf { it.size >= 2 }
-                ?.orientedBetween(start, end)
+                ?.orientedBetween(
+                    start = if (sameSense) start else end,
+                    end = if (sameSense) end else start
+                )
             return polylinePoints?.let {
                 StepLiteEntity.Polyline(points = it, sourceId = sourceId)
             }
@@ -509,6 +521,30 @@ private fun String.topLevelNumbers(): List<Double> {
     }
     flush(length)
     return values
+}
+
+private fun String.lastTopLevelLogical(): Boolean? {
+    var depth = 0
+    var logical: Boolean? = null
+    var index = 0
+    while (index < length) {
+        val char = this[index]
+        when {
+            char == '\'' -> index = skipStepString(index)
+            char == '(' -> depth += 1
+            char == ')' -> depth -= 1
+            depth == 0 && regionMatches(index, ".T.", 0, 3, ignoreCase = true) -> {
+                logical = true
+                index += 2
+            }
+            depth == 0 && regionMatches(index, ".F.", 0, 3, ignoreCase = true) -> {
+                logical = false
+                index += 2
+            }
+        }
+        index += 1
+    }
+    return logical
 }
 
 private fun String.skipStepString(start: Int): Int {
