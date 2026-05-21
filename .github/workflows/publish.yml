@@ -42,6 +42,13 @@ jobs:
       - name: Verify parser
         run: ./gradlew check
 
+      - name: Validate snapshot publish inputs
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'snapshot' }}
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: ./scripts/require-maven-central-env.sh snapshot
+
       - name: Publish snapshot
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'snapshot' }}
         env:
@@ -61,6 +68,8 @@ jobs:
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
           WORKFLOW_RELEASE_VERSION: ${{ inputs.release_version }}
         run: |
+          ./scripts/require-maven-central-env.sh release
+
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             VERSION="${GITHUB_REF_NAME#v}"
           else

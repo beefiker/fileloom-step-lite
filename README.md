@@ -53,13 +53,20 @@ The `check` lifecycle runs `checkPublishedArtifactFootprint`, which keeps the pa
 
 Create and verify the `dev.jaeyoung` namespace in Central Portal before running a remote publish. The build uses only Gradle's built-in publishing/signing plugins.
 
-Set credentials with Gradle properties or environment variables:
+Create a Central Portal user token and set its username/password as Gradle properties or environment variables:
 
 ```bash
 export MAVEN_CENTRAL_USERNAME="..."
 export MAVEN_CENTRAL_PASSWORD="..."
 export SIGNING_KEY="$(cat private-key.asc)"
 export SIGNING_PASSWORD="..."
+```
+
+Check publish inputs locally without uploading:
+
+```bash
+./scripts/require-maven-central-env.sh snapshot
+./scripts/require-maven-central-env.sh release
 ```
 
 Publish a snapshot:

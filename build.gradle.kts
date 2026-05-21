@@ -1,4 +1,5 @@
 import java.util.zip.ZipFile
+import org.gradle.api.tasks.Exec
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.gradle.jvm.tasks.Jar
 
@@ -68,8 +69,15 @@ val checkPublishedArtifactFootprint by tasks.registering {
     }
 }
 
+val checkMavenCentralPublishEnv by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Checks Maven Central publish preflight validation stays wired and dependency-free."
+    commandLine("bash", "scripts/test-maven-central-env.sh")
+}
+
 tasks.named("check") {
     dependsOn(checkPublishedArtifactFootprint)
+    dependsOn(checkMavenCentralPublishEnv)
 }
 
 val mavenCentralUsername = providers.gradleProperty("mavenCentralUsername")
