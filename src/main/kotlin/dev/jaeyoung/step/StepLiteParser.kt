@@ -836,6 +836,13 @@ class StepLiteParser(
                 weights = weights
             )
         }
+        if (knotArgs == null && entityArgs("UNIFORM_CURVE") != null) {
+            return toUniformBSplineRecord(
+                degree = degree,
+                controlPointIds = controlPointIds,
+                weights = weights
+            )
+        }
         if (knotArgs == null) return null
         return knotArgs.toBSplineRecord(
             degree = degree,
@@ -875,6 +882,21 @@ class StepLiteParser(
             knots = List(degree + 1) { 0.0 } +
                 (1..interiorCount).map { it.toDouble() } +
                 List(degree + 1) { endKnot },
+            weights = weights
+        )
+    }
+
+    private fun toUniformBSplineRecord(
+        degree: Int,
+        controlPointIds: List<Int>,
+        weights: List<Double>?
+    ): BSplineRecord? {
+        if (controlPointIds.size <= degree) return null
+        if (weights != null && (weights.size != controlPointIds.size || weights.any { it <= 0.0 })) return null
+        return BSplineRecord(
+            degree = degree,
+            controlPointIds = controlPointIds,
+            knots = List(controlPointIds.size + degree + 1) { it.toDouble() },
             weights = weights
         )
     }

@@ -412,6 +412,27 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun parsesComplexUniformCurveRecordsAsLightweightPolylines() {
+        val result = StepLiteParser().parse(ComplexUniformStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val curve = document.entities.single()
+        assertTrue(curve is StepLiteEntity.Polyline)
+        curve as StepLiteEntity.Polyline
+        assertTrue(curve.points.size > 8)
+        assertClose(1.5, curve.points.first().x)
+        assertClose(3.0, curve.points.first().y)
+        assertClose(5.0, curve.points[curve.points.lastIndex / 2].x)
+        assertClose(6.0, curve.points[curve.points.lastIndex / 2].y)
+        assertClose(8.5, curve.points.last().x)
+        assertClose(3.0, curve.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun honorsAxisPlacementRefDirectionWhenSamplingEllipses() {
         val result = StepLiteParser().parse(RotatedEllipseStep.byteInputStream())
 
@@ -1130,6 +1151,39 @@ class StepLiteParserTest {
                 GEOMETRIC_REPRESENTATION_ITEM()
                 QUASI_UNIFORM_CURVE()
                 REPRESENTATION_ITEM('')
+            );
+            #31=EDGE_CURVE('',#20,#21,#30,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val ComplexUniformStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom complex uniform STEP fixture'),'2;1');
+            FILE_NAME('complex-uniform.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Complex Uniform Fixture','Complex Uniform Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(3.,6.,0.));
+            #12=CARTESIAN_POINT('',(7.,6.,0.));
+            #13=CARTESIAN_POINT('',(10.,0.,0.));
+            #14=CARTESIAN_POINT('',(1.5,3.,0.));
+            #15=CARTESIAN_POINT('',(8.5,3.,0.));
+            #20=VERTEX_POINT('',#14);
+            #21=VERTEX_POINT('',#15);
+            #30=(
+                BOUNDED_CURVE()
+                B_SPLINE_CURVE(2,(#10,#11,#12,#13),.UNSPECIFIED.,.F.,.F.)
+                CURVE()
+                GEOMETRIC_REPRESENTATION_ITEM()
+                REPRESENTATION_ITEM('')
+                UNIFORM_CURVE()
             );
             #31=EDGE_CURVE('',#20,#21,#30,.T.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
