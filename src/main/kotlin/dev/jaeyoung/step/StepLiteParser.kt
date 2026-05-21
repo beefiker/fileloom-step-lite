@@ -756,6 +756,20 @@ class StepLiteParser(
             )
         }
 
+        circles[basisCurveId]?.toStandaloneEntity(
+            sourceId = sourceId,
+            points = points,
+            directions = directions,
+            placements = placements
+        )?.let { return it }
+
+        ellipses[basisCurveId]?.toStandalonePolyline(
+            sourceId = sourceId,
+            points = points,
+            directions = directions,
+            placements = placements
+        )?.let { return it }
+
         return basisCurveId.toBoundedCurvePoints(
             sameSense = sameSense,
             points = points,

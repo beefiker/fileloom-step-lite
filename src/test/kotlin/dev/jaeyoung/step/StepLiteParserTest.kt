@@ -697,6 +697,32 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun emitsStandaloneSurfaceCurveConicsWithoutEdgeRecords() {
+        val result = StepLiteParser().parse(StandaloneSurfaceConicStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(2, document.entities.size)
+        val circle = document.entities[0]
+        assertTrue(circle is StepLiteEntity.Circle)
+        circle as StepLiteEntity.Circle
+        assertClose(10.0, circle.center.x)
+        assertClose(10.0, circle.center.y)
+        assertClose(3.0, circle.radius)
+
+        val ellipse = document.entities[1]
+        assertTrue(ellipse is StepLiteEntity.Polyline)
+        ellipse as StepLiteEntity.Polyline
+        assertTrue(ellipse.points.size > 8)
+        assertClose(26.0, ellipse.points.first().x)
+        assertClose(10.0, ellipse.points.first().y)
+        assertClose(ellipse.points.first().x, ellipse.points.last().x)
+        assertClose(ellipse.points.first().y, ellipse.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesComplexRationalBSplineRecordsAsLightweightPolylines() {
         val result = StepLiteParser().parse(ComplexRationalBSplineStep.byteInputStream())
 
@@ -1655,6 +1681,40 @@ class StepLiteParserTest {
             #21=CARTESIAN_POINT('',(5.,7.5,0.));
             #30=TRIMMED_CURVE('',#14,(#20),(#21),.T.,.CARTESIAN.);
             #40=GEOMETRIC_CURVE_SET('',(#30));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val StandaloneSurfaceConicStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom standalone surface conic STEP fixture'),'2;1');
+            FILE_NAME('standalone-surface-conic.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Standalone Surface Conic Fixture','Standalone Surface Conic Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(10.,10.,0.));
+            #11=CARTESIAN_POINT('',(20.,10.,0.));
+            #12=DIRECTION('',(0.,0.,1.));
+            #13=DIRECTION('',(1.,0.,0.));
+            #14=AXIS2_PLACEMENT_3D('',#10,#12,#13);
+            #15=AXIS2_PLACEMENT_3D('',#11,#12,#13);
+            #20=CIRCLE('',#14,3.);
+            #21=ELLIPSE('',#15,6.,3.);
+            #30=SURFACE_CURVE('',#20,(#90),.CURVE_3D.);
+            #31=SEAM_CURVE('',#21,(#91,#92),.PCURVE_S1.);
+            #40=GEOMETRIC_CURVE_SET('',(#30,#31));
+            #90=PCURVE('',#93,#94);
+            #91=PCURVE('',#93,#94);
+            #92=PCURVE('',#93,#94);
+            #93=PLANE('',#95);
+            #94=DEFINITIONAL_REPRESENTATION('',(),#96);
+            #95=AXIS2_PLACEMENT_3D('',#10,#12,#13);
+            #96=REPRESENTATION_CONTEXT('','');
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
