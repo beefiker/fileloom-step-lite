@@ -48,6 +48,7 @@ class StepLitePublishingTest {
         assertTrue(readme.contains("SIGNING_PASSWORD"))
         assertTrue(readme.contains("publishAllPublicationsToCentralSnapshotsRepository"))
         assertTrue(readme.contains("publishAllPublicationsToCentralReleaseRepository"))
+        assertTrue(readme.contains("checkPublishedArtifactFootprint"))
     }
 
     @Test
@@ -65,5 +66,17 @@ class StepLitePublishingTest {
         assertFalse(sourceText.contains("OpenCascade", ignoreCase = true))
         assertFalse(sourceText.contains("occt", ignoreCase = true))
         assertFalse(sourceText.contains("wasm", ignoreCase = true))
+    }
+
+    @Test
+    fun buildLifecycleEnforcesPublishedArtifactFootprint() {
+        val buildFile = File("build.gradle.kts").readText()
+
+        assertTrue(buildFile.contains("checkPublishedArtifactFootprint"))
+        assertTrue(buildFile.contains("maxPublishedJarBytes"))
+        assertTrue(buildFile.contains("\".wasm\""))
+        assertTrue(buildFile.contains("\".so\""))
+        assertTrue(buildFile.contains("tasks.named(\"check\")"))
+        assertTrue(buildFile.contains("dependsOn(checkPublishedArtifactFootprint)"))
     }
 }

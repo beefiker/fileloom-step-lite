@@ -1,4 +1,6 @@
+import java.util.zip.ZipFile
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.gradle.jvm.tasks.Jar
 
 plugins {
     alias(libs.plugins.jetbrainsKotlinJvm)
@@ -31,6 +33,43 @@ kotlin {
 
 dependencies {
     testImplementation(libs.junit)
+}
+
+val maxPublishedJarBytes = 128 * 1024
+val forbiddenArtifactSuffixes = listOf(".wasm", ".so", ".dylib", ".dll", ".a", ".o")
+
+val checkPublishedArtifactFootprint by tasks.registering {
+    group = "verification"
+    description = "Checks that the published parser jar stays small and free of native or Wasm payloads."
+
+    val jarTask = tasks.named<Jar>("jar")
+    dependsOn(jarTask)
+    val jarFile = jarTask.flatMap { it.archiveFile }
+    inputs.file(jarFile)
+
+    doLast {
+        val artifact = jarFile.get().asFile
+        check(artifact.length() <= maxPublishedJarBytes) {
+            "fileloom-step-lite jar is ${artifact.length()} bytes, above the $maxPublishedJarBytes byte budget"
+        }
+        ZipFile(artifact).use { zip ->
+            val forbiddenEntries = zip.entries().asSequence()
+                .map { it.name }
+                .filter { entryName ->
+                    forbiddenArtifactSuffixes.any { suffix ->
+                        entryName.endsWith(suffix, ignoreCase = true)
+                    }
+                }
+                .toList()
+            check(forbiddenEntries.isEmpty()) {
+                "fileloom-step-lite jar contains forbidden native/Wasm payloads: $forbiddenEntries"
+            }
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn(checkPublishedArtifactFootprint)
 }
 
 val mavenCentralUsername = providers.gradleProperty("mavenCentralUsername")

@@ -38,10 +38,12 @@ when (result) {
 
 ```bash
 ./gradlew test
+./gradlew check
 ./gradlew publishToMavenLocal
 ```
 
 The module is configured with `maven-publish`, `signing`, `group = "dev.jaeyoung"`, and artifact ID `fileloom-step-lite`.
+The `check` lifecycle runs `checkPublishedArtifactFootprint`, which keeps the parser jar under its size budget and rejects native or WASM payloads.
 
 ## Maven Central
 
