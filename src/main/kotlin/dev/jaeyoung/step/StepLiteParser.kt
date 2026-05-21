@@ -10,6 +10,7 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 enum class StepLiteUnit {
     MILLIMETER,
@@ -99,6 +100,17 @@ sealed interface StepLiteParseResult {
     data class Failure(val message: String) : StepLiteParseResult
 }
 
+private data class DirectionRecord(
+    val x: Double,
+    val y: Double,
+    val z: Double
+)
+
+private data class PlacementBasis(
+    val xAxis: DirectionRecord,
+    val yAxis: DirectionRecord
+)
+
 class StepLiteParser(
     private val maxBytes: Int = DefaultMaxBytes,
     private val maxRecords: Int = DefaultMaxRecords,
@@ -130,6 +142,7 @@ class StepLiteParser(
     private fun parseText(text: String): StepLiteParseResult {
         val points = linkedMapOf<Int, StepLitePoint>()
         val vertexPoints = linkedMapOf<Int, Int>()
+        val directions = linkedMapOf<Int, DirectionRecord>()
         val placements = linkedMapOf<Int, AxisPlacementRecord>()
         val circles = linkedMapOf<Int, CircleRecord>()
         val ellipses = linkedMapOf<Int, EllipseRecord>()
@@ -161,10 +174,18 @@ class StepLiteParser(
                     val pointRef = record.args.refs().firstOrNull()
                     if (pointRef != null) vertexPoints[record.id] = pointRef
                 }
+                "DIRECTION" -> {
+                    val direction = record.args.firstNumberTuple(minSize = 2)?.toDirection()
+                    if (direction != null) directions[record.id] = direction
+                }
                 "AXIS2_PLACEMENT_3D" -> {
                     val refs = record.args.refs()
                     if (refs.isNotEmpty()) {
-                        placements[record.id] = AxisPlacementRecord(locationPointId = refs[0])
+                        placements[record.id] = AxisPlacementRecord(
+                            locationPointId = refs[0],
+                            axisDirectionId = refs.getOrNull(1),
+                            refDirectionId = refs.getOrNull(2)
+                        )
                     }
                 }
                 "CIRCLE" -> {
@@ -232,6 +253,7 @@ class StepLiteParser(
                     start = start,
                     end = end,
                     points = points,
+                    directions = directions,
                     placements = placements,
                     circles = circles,
                     ellipses = ellipses,
@@ -276,7 +298,9 @@ class StepLiteParser(
     )
 
     private data class AxisPlacementRecord(
-        val locationPointId: Int
+        val locationPointId: Int,
+        val axisDirectionId: Int?,
+        val refDirectionId: Int?
     )
 
     private data class CircleRecord(
@@ -300,6 +324,7 @@ class StepLiteParser(
         start: StepLitePoint,
         end: StepLitePoint,
         points: Map<Int, StepLitePoint>,
+        directions: Map<Int, DirectionRecord>,
         placements: Map<Int, AxisPlacementRecord>,
         circles: Map<Int, CircleRecord>,
         ellipses: Map<Int, EllipseRecord>,
@@ -332,15 +357,15 @@ class StepLiteParser(
         }
 
         val ellipse = ellipses[curveId]
-        val ellipseCenter = ellipse
-            ?.let { placements[it.placementId] }
-            ?.let { points[it.locationPointId] }
-        if (ellipse != null && ellipseCenter != null) {
+        val ellipsePlacement = ellipse?.let { placements[it.placementId] }
+        val ellipseCenter = ellipsePlacement?.let { points[it.locationPointId] }
+        if (ellipse != null && ellipsePlacement != null && ellipseCenter != null) {
             val ellipseStart = if (sameSense) start else end
             val ellipseEnd = if (sameSense) end else start
             return StepLiteEntity.Polyline(
                 points = ellipse.toPolylinePoints(
                     center = ellipseCenter,
+                    basis = ellipsePlacement.toBasis(directions),
                     start = ellipseStart,
                     end = ellipseEnd,
                     closed = start.samePositionAs(end)
@@ -387,17 +412,18 @@ class StepLiteParser(
 
     private fun EllipseRecord.toPolylinePoints(
         center: StepLitePoint,
+        basis: PlacementBasis,
         start: StepLitePoint,
         end: StepLitePoint,
         closed: Boolean
     ): List<StepLitePoint> {
-        val startAngle = start.ellipseAngleFrom(center, majorRadius, minorRadius)
+        val startAngle = start.ellipseAngleFrom(center, basis, majorRadius, minorRadius)
         val sweep = if (closed) {
             2.0 * PI
         } else {
             positiveSweep(
                 from = startAngle,
-                to = end.ellipseAngleFrom(center, majorRadius, minorRadius)
+                to = end.ellipseAngleFrom(center, basis, majorRadius, minorRadius)
             )
         }
         val segments = if (closed) {
@@ -407,12 +433,33 @@ class StepLiteParser(
         }
         return List(segments + 1) { index ->
             val angle = startAngle + sweep * index / segments
+            val majorOffset = majorRadius * cos(angle)
+            val minorOffset = minorRadius * sin(angle)
             StepLitePoint(
-                x = center.x + majorRadius * cos(angle),
-                y = center.y + minorRadius * sin(angle),
-                z = center.z
+                x = center.x + basis.xAxis.x * majorOffset + basis.yAxis.x * minorOffset,
+                y = center.y + basis.xAxis.y * majorOffset + basis.yAxis.y * minorOffset,
+                z = center.z + basis.xAxis.z * majorOffset + basis.yAxis.z * minorOffset
             )
         }
+    }
+
+    private fun AxisPlacementRecord.toBasis(directions: Map<Int, DirectionRecord>): PlacementBasis {
+        val zAxis = axisDirectionId?.let(directions::get)?.normalizedOrNull() ?: DefaultZAxis
+        val rawX = refDirectionId?.let(directions::get)?.normalizedOrNull() ?: DefaultXAxis
+        val projectedX = rawX.minus(zAxis.scale(rawX.dot(zAxis))).normalizedOrNull()
+            ?: fallbackXAxisFor(zAxis)
+        return PlacementBasis(
+            xAxis = projectedX,
+            yAxis = zAxis.cross(projectedX).normalizedOrNull() ?: DefaultYAxis
+        )
+    }
+
+    private fun fallbackXAxisFor(zAxis: DirectionRecord): DirectionRecord {
+        return listOf(DefaultXAxis, DefaultYAxis)
+            .firstNotNullOfOrNull { candidate ->
+                candidate.minus(zAxis.scale(candidate.dot(zAxis))).normalizedOrNull()
+            }
+            ?: DefaultXAxis
     }
 
     private fun BSplineRecord.toPolylinePoints(points: Map<Int, StepLitePoint>): List<StepLitePoint>? {
@@ -497,6 +544,9 @@ class StepLiteParser(
         private const val DefaultMaxEntities = 100_000
         private const val EllipseSegments = 32
         private const val SplineSegments = 32
+        private val DefaultXAxis = DirectionRecord(1.0, 0.0, 0.0)
+        private val DefaultYAxis = DirectionRecord(0.0, 1.0, 0.0)
+        private val DefaultZAxis = DirectionRecord(0.0, 0.0, 1.0)
     }
 }
 
@@ -777,6 +827,14 @@ private fun List<Double>.toPoint(): StepLitePoint {
     )
 }
 
+private fun List<Double>.toDirection(): DirectionRecord {
+    return DirectionRecord(
+        x = this[0],
+        y = this[1],
+        z = getOrElse(2) { 0.0 }
+    )
+}
+
 private fun StepLitePoint.samePositionAs(other: StepLitePoint): Boolean {
     return kotlin.math.abs(x - other.x) <= CoordinateTolerance &&
         kotlin.math.abs(y - other.y) <= CoordinateTolerance &&
@@ -795,12 +853,52 @@ private fun StepLitePoint.angleFrom(center: StepLitePoint): Double {
     return atan2(y - center.y, x - center.x)
 }
 
+private fun DirectionRecord.dot(other: DirectionRecord): Double {
+    return x * other.x + y * other.y + z * other.z
+}
+
+private fun DirectionRecord.cross(other: DirectionRecord): DirectionRecord {
+    return DirectionRecord(
+        x = y * other.z - z * other.y,
+        y = z * other.x - x * other.z,
+        z = x * other.y - y * other.x
+    )
+}
+
+private fun DirectionRecord.minus(other: DirectionRecord): DirectionRecord {
+    return DirectionRecord(
+        x = x - other.x,
+        y = y - other.y,
+        z = z - other.z
+    )
+}
+
+private fun DirectionRecord.scale(value: Double): DirectionRecord {
+    return DirectionRecord(
+        x = x * value,
+        y = y * value,
+        z = z * value
+    )
+}
+
+private fun DirectionRecord.normalizedOrNull(): DirectionRecord? {
+    val length = sqrt(x * x + y * y + z * z)
+    if (length <= CoordinateTolerance) return null
+    return scale(1.0 / length)
+}
+
 private fun StepLitePoint.ellipseAngleFrom(
     center: StepLitePoint,
+    basis: PlacementBasis,
     majorRadius: Double,
     minorRadius: Double
 ): Double {
-    return atan2((y - center.y) / minorRadius, (x - center.x) / majorRadius)
+    val relative = DirectionRecord(
+        x = x - center.x,
+        y = y - center.y,
+        z = z - center.z
+    )
+    return atan2(relative.dot(basis.yAxis) / minorRadius, relative.dot(basis.xAxis) / majorRadius)
 }
 
 private fun positiveSweep(from: Double, to: Double): Double {

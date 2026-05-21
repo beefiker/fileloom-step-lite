@@ -232,6 +232,24 @@ class StepLiteParserTest {
         assertEquals(0, document.unsupportedEntityCount)
     }
 
+    @Test
+    fun honorsAxisPlacementRefDirectionWhenSamplingEllipses() {
+        val result = StepLiteParser().parse(RotatedEllipseStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val ellipse = document.entities.single()
+        assertTrue(ellipse is StepLiteEntity.Polyline)
+        ellipse as StepLiteEntity.Polyline
+        assertClose(10.0, ellipse.points.first().x)
+        assertClose(16.0, ellipse.points.first().y)
+        assertClose(7.0, ellipse.points.last().x)
+        assertClose(10.0, ellipse.points.last().y)
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
     private fun assertClose(expected: Double, actual: Double) {
         assertEquals(expected, actual, 0.000001)
     }
@@ -521,6 +539,32 @@ class StepLiteParserTest {
             #30=B_SPLINE_CURVE_WITH_KNOTS('',2,(#10,#11,#12),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);
             #31=EDGE_CURVE('',#20,#21,#30,.T.);
             #32=EDGE_CURVE('',#21,#20,#30,.F.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val RotatedEllipseStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom rotated ellipse STEP fixture'),'2;1');
+            FILE_NAME('rotated-ellipse.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Rotated Ellipse Fixture','Rotated Ellipse Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(10.,10.,0.));
+            #11=DIRECTION('',(0.,0.,1.));
+            #12=DIRECTION('',(0.,1.,0.));
+            #13=AXIS2_PLACEMENT_3D('',#10,#11,#12);
+            #14=ELLIPSE('',#13,6.,3.);
+            #20=CARTESIAN_POINT('',(10.,16.,0.));
+            #21=CARTESIAN_POINT('',(7.,10.,0.));
+            #22=VERTEX_POINT('',#20);
+            #23=VERTEX_POINT('',#21);
+            #24=EDGE_CURVE('',#22,#23,#14,.T.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
