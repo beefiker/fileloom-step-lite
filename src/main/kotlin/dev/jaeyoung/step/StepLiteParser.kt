@@ -2107,7 +2107,7 @@ class StepLiteParser(
     private fun String.toBSplineRecord(): BSplineRecord? {
         val degree = topLevelNumbers().firstOrNull()?.toExactIntOrNull() ?: return null
         if (degree < 1) return null
-        val controlPointIds = refs().takeIf { it.size > degree } ?: return null
+        val controlPointIds = splineControlPointIds()?.takeIf { it.size > degree } ?: return null
         val numberTuples = topLevelNumberTuples()
         return toBSplineRecord(
             degree = degree,
@@ -2120,7 +2120,7 @@ class StepLiteParser(
     private fun String.toSimpleBSplineRecord(): BSplineRecord? {
         val degree = topLevelNumbers().firstOrNull()?.toExactIntOrNull() ?: return null
         if (degree < 1) return null
-        val controlPointIds = refs().takeIf { it.size > degree } ?: return null
+        val controlPointIds = splineControlPointIds()?.takeIf { it.size > degree } ?: return null
         return toQuasiUniformBSplineRecord(
             degree = degree,
             controlPointIds = controlPointIds,
@@ -2131,7 +2131,7 @@ class StepLiteParser(
     private fun String.toSimpleBezierRecord(): BSplineRecord? {
         val degree = topLevelNumbers().firstOrNull()?.toExactIntOrNull() ?: return null
         if (degree < 1) return null
-        val controlPointIds = refs().takeIf { it.size > degree } ?: return null
+        val controlPointIds = splineControlPointIds()?.takeIf { it.size > degree } ?: return null
         return toBezierBSplineRecord(
             degree = degree,
             controlPointIds = controlPointIds,
@@ -2142,7 +2142,7 @@ class StepLiteParser(
     private fun String.toSimpleQuasiUniformRecord(): BSplineRecord? {
         val degree = topLevelNumbers().firstOrNull()?.toExactIntOrNull() ?: return null
         if (degree < 1) return null
-        val controlPointIds = refs().takeIf { it.size > degree } ?: return null
+        val controlPointIds = splineControlPointIds()?.takeIf { it.size > degree } ?: return null
         return toQuasiUniformBSplineRecord(
             degree = degree,
             controlPointIds = controlPointIds,
@@ -2153,7 +2153,7 @@ class StepLiteParser(
     private fun String.toSimpleUniformRecord(): BSplineRecord? {
         val degree = topLevelNumbers().firstOrNull()?.toExactIntOrNull() ?: return null
         if (degree < 1) return null
-        val controlPointIds = refs().takeIf { it.size > degree } ?: return null
+        val controlPointIds = splineControlPointIds()?.takeIf { it.size > degree } ?: return null
         return toUniformBSplineRecord(
             degree = degree,
             controlPointIds = controlPointIds,
@@ -2165,7 +2165,7 @@ class StepLiteParser(
         val curveArgs = entityArgs("B_SPLINE_CURVE") ?: return null
         val degree = curveArgs.topLevelNumbers().firstOrNull()?.toExactIntOrNull() ?: return null
         if (degree < 1) return null
-        val controlPointIds = curveArgs.refs().takeIf { it.size > degree } ?: return null
+        val controlPointIds = curveArgs.splineControlPointIds()?.takeIf { it.size > degree } ?: return null
         val weights = entityArgs("RATIONAL_B_SPLINE_CURVE")
             ?.deepNumberTuples()
             ?.lastOrNull()
@@ -2253,6 +2253,17 @@ class StepLiteParser(
             knots = List(controlPointIds.size + degree + 1) { it.toDouble() },
             weights = weights
         )
+    }
+
+    private fun String.splineControlPointIds(): List<Int>? {
+        val fields = topLevelFields()
+        val degreeIndex = fields.indexOfFirst { field ->
+            field.topLevelNumbers().firstOrNull()?.toExactIntOrNull() != null
+        }
+        if (degreeIndex < 0) return null
+        val controlPointField = fields.getOrNull(degreeIndex + 1) ?: return null
+        if (controlPointField.hasUnknownStepValueOutsideString()) return null
+        return controlPointField.refs().takeIf { it.isNotEmpty() }
     }
 
     private fun String.toCircleRecord(): CircleRecord? {

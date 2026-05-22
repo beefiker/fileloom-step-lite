@@ -503,6 +503,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsUnknownBSplineControlPointPlaceholdersInsteadOfDroppingThem() {
+        val result = StepLiteParser().parse(UnknownBSplineControlPointPlaceholderStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun rejectsFractionalBSplineKnotMultiplicities() {
         val result = StepLiteParser().parse(FractionalBSplineMultiplicityStep.byteInputStream())
 
@@ -1537,6 +1547,16 @@ class StepLiteParserTest {
         assertEquals(0, document.unsupportedEntityCount)
     }
 
+    @Test
+    fun rejectsUnknownComplexBSplineControlPointPlaceholdersInsteadOfDroppingThem() {
+        val result = StepLiteParser().parse(UnknownComplexBSplineControlPointPlaceholderStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
     private fun assertClose(expected: Double, actual: Double) {
         assertEquals(expected, actual, 0.000001)
     }
@@ -2292,6 +2312,29 @@ class StepLiteParserTest {
             #30=B_SPLINE_CURVE_WITH_KNOTS('',2,(#10,#11,#12),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);
             #31=EDGE_CURVE('',#20,#21,#30,.T.);
             #32=EDGE_CURVE('',#21,#20,#30,.F.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val UnknownBSplineControlPointPlaceholderStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom unknown B-spline control point placeholder STEP fixture'),'2;1');
+            FILE_NAME('unknown-bspline-control-point-placeholder.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Unknown B-spline Control Point Placeholder Fixture','Unknown B-spline Control Point Placeholder Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(5.,10.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#12);
+            #30=B_SPLINE_CURVE_WITH_KNOTS('',2,(#10,$,#11,#12),.UNSPECIFIED.,.F.,.F.,(3,3),(0.,1.),.UNSPECIFIED.);
+            #31=EDGE_CURVE('',#20,#21,#30,.T.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
@@ -3664,6 +3707,37 @@ class StepLiteParserTest {
             #30=(
                 BOUNDED_CURVE()
                 B_SPLINE_CURVE(2,(#10,#11,#12),.UNSPECIFIED.,.F.,.F.)
+                B_SPLINE_CURVE_WITH_KNOTS((3,3),(0.,1.),.UNSPECIFIED.)
+                CURVE()
+                GEOMETRIC_REPRESENTATION_ITEM()
+                RATIONAL_B_SPLINE_CURVE((1.,4.,1.))
+                REPRESENTATION_ITEM('')
+            );
+            #31=EDGE_CURVE('',#20,#21,#30,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val UnknownComplexBSplineControlPointPlaceholderStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom unknown complex B-spline control point placeholder STEP fixture'),'2;1');
+            FILE_NAME('unknown-complex-bspline-control-point-placeholder.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Unknown Complex B-spline Control Point Placeholder Fixture','Unknown Complex B-spline Control Point Placeholder Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(5.,10.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#12);
+            #30=(
+                BOUNDED_CURVE()
+                B_SPLINE_CURVE(2,(#10,$,#11,#12),.UNSPECIFIED.,.F.,.F.)
                 B_SPLINE_CURVE_WITH_KNOTS((3,3),(0.,1.),.UNSPECIFIED.)
                 CURVE()
                 GEOMETRIC_REPRESENTATION_ITEM()
