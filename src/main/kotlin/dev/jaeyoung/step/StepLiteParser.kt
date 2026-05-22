@@ -2262,7 +2262,7 @@ class StepLiteParser(
         }
         if (degreeIndex < 0) return null
         val controlPointField = fields.getOrNull(degreeIndex + 1) ?: return null
-        if (controlPointField.hasUnknownStepValueOutsideString()) return null
+        if (controlPointField.hasUnsetStepValueOutsideString()) return null
         return controlPointField.refs().takeIf { it.isNotEmpty() }
     }
 
@@ -2309,12 +2309,12 @@ class StepLiteParser(
     }
 
     private fun String.toPolylineRecord(): List<Int>? {
-        if (hasUnknownStepValueOutsideString()) return null
+        if (hasUnsetStepValueOutsideString()) return null
         return refs().takeIf { it.size >= 2 }
     }
 
     private fun String.toPolyLoopRecord(): List<Int>? {
-        if (hasUnknownStepValueOutsideString()) return null
+        if (hasUnsetStepValueOutsideString()) return null
         return refs().takeIf { it.size >= 3 }
     }
 
@@ -2575,12 +2575,12 @@ private fun String.refs(): List<Int> {
     return refs
 }
 
-private fun String.hasUnknownStepValueOutsideString(): Boolean {
+private fun String.hasUnsetStepValueOutsideString(): Boolean {
     var index = 0
     while (index < length) {
         when (this[index]) {
             '\'' -> index = skipStepString(index)
-            '$' -> return true
+            '$', '*' -> return true
         }
         index += 1
     }
