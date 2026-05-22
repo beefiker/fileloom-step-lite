@@ -199,24 +199,12 @@ class StepLiteParser(
                     if (direction != null) directions[record.id] = direction
                 }
                 "AXIS2_PLACEMENT_3D" -> {
-                    val refs = record.args.refs()
-                    if (refs.isNotEmpty()) {
-                        placements[record.id] = AxisPlacementRecord(
-                            locationPointId = refs[0],
-                            axisDirectionId = refs.getOrNull(1),
-                            refDirectionId = refs.getOrNull(2)
-                        )
-                    }
+                    val placement = record.args.toAxis2Placement3dRecord()
+                    if (placement != null) placements[record.id] = placement
                 }
                 "AXIS2_PLACEMENT_2D" -> {
-                    val refs = record.args.refs()
-                    if (refs.isNotEmpty()) {
-                        placements[record.id] = AxisPlacementRecord(
-                            locationPointId = refs[0],
-                            axisDirectionId = null,
-                            refDirectionId = refs.getOrNull(1)
-                        )
-                    }
+                    val placement = record.args.toAxis2Placement2dRecord()
+                    if (placement != null) placements[record.id] = placement
                 }
                 "CIRCLE" -> {
                     val circle = record.args.toCircleRecord()
@@ -317,22 +305,10 @@ class StepLiteParser(
                         ?.firstNumberTuple(minSize = 2)
                         ?.toDirection()
                     if (direction != null) directions[record.id] = direction
-                    val axisPlacementRefs = record.args.entityArgs("AXIS2_PLACEMENT_3D")?.refs()
-                    if (!axisPlacementRefs.isNullOrEmpty()) {
-                        placements[record.id] = AxisPlacementRecord(
-                            locationPointId = axisPlacementRefs[0],
-                            axisDirectionId = axisPlacementRefs.getOrNull(1),
-                            refDirectionId = axisPlacementRefs.getOrNull(2)
-                        )
-                    }
-                    val axis2dPlacementRefs = record.args.entityArgs("AXIS2_PLACEMENT_2D")?.refs()
-                    if (!axis2dPlacementRefs.isNullOrEmpty()) {
-                        placements[record.id] = AxisPlacementRecord(
-                            locationPointId = axis2dPlacementRefs[0],
-                            axisDirectionId = null,
-                            refDirectionId = axis2dPlacementRefs.getOrNull(1)
-                        )
-                    }
+                    val axisPlacement = record.args.entityArgs("AXIS2_PLACEMENT_3D")?.toAxis2Placement3dRecord()
+                    if (axisPlacement != null) placements[record.id] = axisPlacement
+                    val axis2dPlacement = record.args.entityArgs("AXIS2_PLACEMENT_2D")?.toAxis2Placement2dRecord()
+                    if (axis2dPlacement != null) placements[record.id] = axis2dPlacement
                     val point = record.args.entityArgs("CARTESIAN_POINT")
                         ?.firstNumberTuple(minSize = 2)
                         ?.toPoint()
@@ -2273,6 +2249,26 @@ class StepLiteParser(
         return controlPointField.refs().takeIf { it.isNotEmpty() }
     }
 
+    private fun String.toAxis2Placement3dRecord(): AxisPlacementRecord? {
+        val fields = topLevelFields()
+        val locationPointId = fields.requiredFieldRef(fieldIndex = 1) ?: return null
+        return AxisPlacementRecord(
+            locationPointId = locationPointId,
+            axisDirectionId = fields.optionalFieldRef(fieldIndex = 2),
+            refDirectionId = fields.optionalFieldRef(fieldIndex = 3)
+        )
+    }
+
+    private fun String.toAxis2Placement2dRecord(): AxisPlacementRecord? {
+        val fields = topLevelFields()
+        val locationPointId = fields.requiredFieldRef(fieldIndex = 1) ?: return null
+        return AxisPlacementRecord(
+            locationPointId = locationPointId,
+            axisDirectionId = null,
+            refDirectionId = fields.optionalFieldRef(fieldIndex = 2)
+        )
+    }
+
     private fun String.toCircleRecord(): CircleRecord? {
         val placementId = refs().firstOrNull() ?: return null
         val radius = topLevelNumbers().lastOrNull() ?: return null
@@ -2478,6 +2474,12 @@ class StepLiteParser(
     }
 
     private fun List<String>.requiredFieldRef(fieldIndex: Int): Int? {
+        val field = getOrNull(fieldIndex) ?: return null
+        if (field.hasUnsetStepValueOutsideString()) return null
+        return field.refs().firstOrNull()
+    }
+
+    private fun List<String>.optionalFieldRef(fieldIndex: Int): Int? {
         val field = getOrNull(fieldIndex) ?: return null
         if (field.hasUnsetStepValueOutsideString()) return null
         return field.refs().firstOrNull()

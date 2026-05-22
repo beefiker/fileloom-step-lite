@@ -425,6 +425,24 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun preservesAxisPlacementRefDirectionWhenAxisIsOmitted() {
+        val result = StepLiteParser().parse(OmittedAxisPlacementAxisStep.byteInputStream())
+
+        assertTrue("Expected Success but was $result", result is StepLiteParseResult.Success)
+        val document = (result as StepLiteParseResult.Success).document
+
+        assertEquals(1, document.entities.size)
+        val ellipse = document.entities.single()
+        assertTrue(ellipse is StepLiteEntity.Polyline)
+        ellipse as StepLiteEntity.Polyline
+        assertClose(10.0, ellipse.points.first().x)
+        assertClose(16.0, ellipse.points.first().y)
+        assertClose(4.0, ellipse.points.minOf { it.y })
+        assertClose(16.0, ellipse.points.maxOf { it.y })
+        assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
     fun parsesComplexConicRecordsAsLightweightCurves() {
         val result = StepLiteParser().parse(ComplexConicStep.byteInputStream())
 
@@ -2282,6 +2300,26 @@ class StepLiteParserTest {
             #23=VERTEX_POINT('',#21);
             #24=EDGE_CURVE('',#22,#22,#14,.T.);
             #25=EDGE_CURVE('',#22,#23,#14,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val OmittedAxisPlacementAxisStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom omitted axis placement axis STEP fixture'),'2;1');
+            FILE_NAME('omitted-axis-placement-axis.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Omitted Axis Placement Axis Fixture','Omitted Axis Placement Axis Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(10.,10.,0.));
+            #11=DIRECTION('',(0.,1.,0.));
+            #12=AXIS2_PLACEMENT_3D('',#10,*,#11);
+            #20=ELLIPSE('',#12,6.,3.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;
