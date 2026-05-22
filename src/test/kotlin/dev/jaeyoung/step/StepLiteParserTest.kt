@@ -255,6 +255,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsUnknownPolylinePointPlaceholdersInsteadOfDroppingThem() {
+        val result = StepLiteParser().parse(UnknownPolylinePointPlaceholderStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun parsesComplexLineAndPolylineRecordsAsLightweightCurves() {
         val result = StepLiteParser().parse(ComplexLinePolylineStep.byteInputStream())
 
@@ -943,6 +953,16 @@ class StepLiteParserTest {
         assertClose(8.0, document.bounds.max.x)
         assertClose(5.0, document.bounds.max.y)
         assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
+    fun rejectsUnknownPolyLoopPointPlaceholdersInsteadOfDroppingThem() {
+        val result = StepLiteParser().parse(UnknownPolyLoopPointPlaceholderStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
     }
 
     @Test
@@ -1924,6 +1944,28 @@ class StepLiteParserTest {
             #20=VERTEX_POINT('',#10);
             #21=VERTEX_POINT('',#12);
             #30=POLYLINE('',(#10,#11,#12));
+            #40=EDGE_CURVE('',#20,#21,#30,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val UnknownPolylinePointPlaceholderStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom unknown polyline point placeholder STEP fixture'),'2;1');
+            FILE_NAME('unknown-polyline-point-placeholder.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Unknown Polyline Point Placeholder Fixture','Unknown Polyline Point Placeholder Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #12=CARTESIAN_POINT('',(10.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#12);
+            #30=POLYLINE('',(#10,$,#12));
             #40=EDGE_CURVE('',#20,#21,#30,.T.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
@@ -2921,6 +2963,32 @@ class StepLiteParserTest {
             #12=CARTESIAN_POINT('',(8.,5.,0.));
             #13=CARTESIAN_POINT('',(0.,5.,0.));
             #20=POLY_LOOP('',(#10,#11,#12,#13));
+            #30=FACE_OUTER_BOUND('',#20,.T.);
+            #31=ADVANCED_FACE('',(#30),#40,.T.);
+            #40=PLANE('',#41);
+            #41=AXIS2_PLACEMENT_3D('',#10,#42,#43);
+            #42=DIRECTION('',(0.,0.,1.));
+            #43=DIRECTION('',(1.,0.,0.));
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val UnknownPolyLoopPointPlaceholderStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom unknown poly loop point placeholder STEP fixture'),'2;1');
+            FILE_NAME('unknown-poly-loop-point-placeholder.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Unknown Poly Loop Point Placeholder Fixture','Unknown Poly Loop Point Placeholder Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(8.,0.,0.));
+            #13=CARTESIAN_POINT('',(0.,5.,0.));
+            #20=POLY_LOOP('',(#10,#11,$,#13));
             #30=FACE_OUTER_BOUND('',#20,.T.);
             #31=ADVANCED_FACE('',(#30),#40,.T.);
             #40=PLANE('',#41);

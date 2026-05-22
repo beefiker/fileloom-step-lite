@@ -2298,10 +2298,12 @@ class StepLiteParser(
     }
 
     private fun String.toPolylineRecord(): List<Int>? {
+        if (hasUnknownStepValueOutsideString()) return null
         return refs().takeIf { it.size >= 2 }
     }
 
     private fun String.toPolyLoopRecord(): List<Int>? {
+        if (hasUnknownStepValueOutsideString()) return null
         return refs().takeIf { it.size >= 3 }
     }
 
@@ -2560,6 +2562,18 @@ private fun String.refs(): List<Int> {
         }
     }
     return refs
+}
+
+private fun String.hasUnknownStepValueOutsideString(): Boolean {
+    var index = 0
+    while (index < length) {
+        when (this[index]) {
+            '\'' -> index = skipStepString(index)
+            '$' -> return true
+        }
+        index += 1
+    }
+    return false
 }
 
 private fun String.firstString(): String? {
