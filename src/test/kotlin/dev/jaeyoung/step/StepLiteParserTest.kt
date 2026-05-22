@@ -275,6 +275,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsUnknownEdgeCurveVerticesInsteadOfEmittingStandaloneCurve() {
+        val result = StepLiteParser().parse(UnknownEdgeCurveVertexStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun parsesComplexLineAndPolylineRecordsAsLightweightCurves() {
         val result = StepLiteParser().parse(ComplexLinePolylineStep.byteInputStream())
 
@@ -2049,6 +2059,28 @@ class StepLiteParserTest {
             #21=VERTEX_POINT('',#12);
             #30=POLYLINE('',(#10,*,#12));
             #40=EDGE_CURVE('',#20,#21,#30,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val UnknownEdgeCurveVertexStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom unknown edge curve vertex STEP fixture'),'2;1');
+            FILE_NAME('unknown-edge-curve-vertex.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Unknown Edge Curve Vertex Fixture','Unknown Edge Curve Vertex Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=DIRECTION('',(1.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #30=LINE('',#10,#90);
+            #40=EDGE_CURVE('',#20,$,#30,.T.);
+            #90=VECTOR('',#11,10.);
             #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
             ENDSEC;
             END-ISO-10303-21;

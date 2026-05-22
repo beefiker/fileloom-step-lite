@@ -165,6 +165,7 @@ class StepLiteParser(
         val edgeLoops = linkedMapOf<Int, List<Int>>()
         val invalidWrapperBasisCurveIds = linkedSetOf<Int>()
         val invalidEdgeLoopMemberIds = linkedSetOf<Int>()
+        val invalidEdgeCurveGeometryIds = linkedSetOf<Int>()
         var productName = ""
         var fileName = ""
         var unit = StepLiteUnit.UNKNOWN
@@ -395,31 +396,21 @@ class StepLiteParser(
                     }
                     val edgeCurveArgs = record.args.entityArgs("EDGE_CURVE")
                     if (edgeCurveArgs != null) {
-                        val refs = edgeCurveArgs.refs()
-                        if (refs.size >= 3) {
-                            edges[record.id] = EdgeCurveRecord(
-                                sourceId = record.id,
-                                startVertexId = refs[0],
-                                endVertexId = refs[1],
-                                curveId = refs[2],
-                                sameSense = edgeCurveArgs.lastTopLevelLogical() ?: true
-                            )
+                        val edge = edgeCurveArgs.toEdgeCurveRecord(sourceId = record.id)
+                        if (edge != null) {
+                            edges[record.id] = edge
                         } else {
+                            edgeCurveArgs.referenceFieldRef(fieldIndex = 3)?.let(invalidEdgeCurveGeometryIds::add)
                             unsupported += 1
                         }
                     }
                 }
                 "EDGE_CURVE" -> {
-                    val refs = record.args.refs()
-                    if (refs.size >= 3) {
-                        edges[record.id] = EdgeCurveRecord(
-                            sourceId = record.id,
-                            startVertexId = refs[0],
-                            endVertexId = refs[1],
-                            curveId = refs[2],
-                            sameSense = record.args.lastTopLevelLogical() ?: true
-                        )
+                    val edge = record.args.toEdgeCurveRecord(sourceId = record.id)
+                    if (edge != null) {
+                        edges[record.id] = edge
                     } else {
+                        record.args.referenceFieldRef(fieldIndex = 3)?.let(invalidEdgeCurveGeometryIds::add)
                         unsupported += 1
                     }
                 }
@@ -452,6 +443,7 @@ class StepLiteParser(
             .plus(curveWrappers.values.asSequence().map { it.basisCurveId })
             .plus(compositeSegments.values.asSequence().map { it.parentCurveId })
             .plus(invalidWrapperBasisCurveIds.asSequence())
+            .plus(invalidEdgeCurveGeometryIds.asSequence())
             .toSet()
         val loopEdgeIds = linkedSetOf<Int>()
         for ((sourceId, orientedEdgeIds) in edgeLoops) {
@@ -2450,6 +2442,20 @@ class StepLiteParser(
         )
     }
 
+    private fun String.toEdgeCurveRecord(sourceId: Int): EdgeCurveRecord? {
+        val fields = topLevelFields()
+        val startVertexId = fields.requiredFieldRef(fieldIndex = 1) ?: return null
+        val endVertexId = fields.requiredFieldRef(fieldIndex = 2) ?: return null
+        val curveId = fields.requiredFieldRef(fieldIndex = 3) ?: return null
+        return EdgeCurveRecord(
+            sourceId = sourceId,
+            startVertexId = startVertexId,
+            endVertexId = endVertexId,
+            curveId = curveId,
+            sameSense = lastTopLevelLogical() ?: true
+        )
+    }
+
     private fun String.toEdgeLoopRecord(): List<Int>? {
         return requiredReferenceAggregateField(fieldIndex = 1)
     }
@@ -2465,6 +2471,16 @@ class StepLiteParser(
             .getOrNull(fieldIndex)
             ?.refs()
             ?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun String.referenceFieldRef(fieldIndex: Int): Int? {
+        return topLevelFields().requiredFieldRef(fieldIndex)
+    }
+
+    private fun List<String>.requiredFieldRef(fieldIndex: Int): Int? {
+        val field = getOrNull(fieldIndex) ?: return null
+        if (field.hasUnsetStepValueOutsideString()) return null
+        return field.refs().firstOrNull()
     }
 
     private companion object {
