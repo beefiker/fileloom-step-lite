@@ -164,6 +164,7 @@ class StepLiteParser(
         val orientedEdges = linkedMapOf<Int, OrientedEdgeRecord>()
         val edgeLoops = linkedMapOf<Int, List<Int>>()
         val invalidWrapperBasisCurveIds = linkedSetOf<Int>()
+        val invalidEdgeLoopMemberIds = linkedSetOf<Int>()
         var productName = ""
         var fileName = ""
         var unit = StepLiteUnit.UNKNOWN
@@ -303,7 +304,11 @@ class StepLiteParser(
                 }
                 "EDGE_LOOP" -> {
                     val loop = record.args.toEdgeLoopRecord()
-                    if (loop != null) edgeLoops[record.id] = loop
+                    if (loop != null) {
+                        edgeLoops[record.id] = loop
+                    } else {
+                        record.args.referenceAggregateFieldRefs(fieldIndex = 1)?.let(invalidEdgeLoopMemberIds::addAll)
+                    }
                 }
                 "COMPLEX" -> {
                     unit = maxOf(unit, record.args.resolveUnit())
@@ -375,7 +380,13 @@ class StepLiteParser(
                     val orientedEdge = record.args.entityArgs("ORIENTED_EDGE")?.toOrientedEdgeRecord()
                     if (orientedEdge != null) orientedEdges[record.id] = orientedEdge
                     val edgeLoop = record.args.entityArgs("EDGE_LOOP")?.toEdgeLoopRecord()
-                    if (edgeLoop != null) edgeLoops[record.id] = edgeLoop
+                    if (edgeLoop != null) {
+                        edgeLoops[record.id] = edgeLoop
+                    } else {
+                        record.args.entityArgs("EDGE_LOOP")
+                            ?.referenceAggregateFieldRefs(fieldIndex = 1)
+                            ?.let(invalidEdgeLoopMemberIds::addAll)
+                    }
                     val lineArgs = record.args.entityArgs("LINE")
                     if (lineArgs != null) {
                         lineCurves += record.id
@@ -471,8 +482,12 @@ class StepLiteParser(
                 }
             }
         }
+        val invalidLoopEdgeIds = invalidEdgeLoopMemberIds.mapNotNullTo(linkedSetOf()) { loopMemberId ->
+            orientedEdges[loopMemberId]?.edgeId ?: loopMemberId.takeIf(edges::containsKey)
+        }
         for (edge in edges.values) {
             if (edge.sourceId in loopEdgeIds) continue
+            if (edge.sourceId in invalidLoopEdgeIds) continue
             val start = vertexPoints[edge.startVertexId]?.let(points::get)
             val end = vertexPoints[edge.endVertexId]?.let(points::get)
             if (start != null && end != null) {
@@ -2424,7 +2439,7 @@ class StepLiteParser(
     }
 
     private fun String.toCompositeCurveRecord(): List<Int>? {
-        return refs().takeIf { it.isNotEmpty() }
+        return requiredReferenceAggregateField(fieldIndex = 1)
     }
 
     private fun String.toOrientedEdgeRecord(): OrientedEdgeRecord? {
@@ -2436,7 +2451,20 @@ class StepLiteParser(
     }
 
     private fun String.toEdgeLoopRecord(): List<Int>? {
-        return refs().takeIf { it.isNotEmpty() }
+        return requiredReferenceAggregateField(fieldIndex = 1)
+    }
+
+    private fun String.requiredReferenceAggregateField(fieldIndex: Int): List<Int>? {
+        val field = topLevelFields().getOrNull(fieldIndex) ?: return null
+        if (field.hasUnsetStepValueOutsideString()) return null
+        return field.refs().takeIf { it.isNotEmpty() }
+    }
+
+    private fun String.referenceAggregateFieldRefs(fieldIndex: Int): List<Int>? {
+        return topLevelFields()
+            .getOrNull(fieldIndex)
+            ?.refs()
+            ?.takeIf { it.isNotEmpty() }
     }
 
     private companion object {

@@ -895,6 +895,16 @@ class StepLiteParserTest {
     }
 
     @Test
+    fun rejectsUnknownCompositeCurveSegmentPlaceholdersInsteadOfDroppingThem() {
+        val result = StepLiteParser().parse(UnknownCompositeCurveSegmentPlaceholderStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
+    }
+
+    @Test
     fun parsesCompositeLineSegmentsAsDedupedLightweightPolylines() {
         val result = StepLiteParser().parse(CompositeLineCurveStep.byteInputStream())
 
@@ -1018,6 +1028,16 @@ class StepLiteParserTest {
         assertClose(0.0, loop.points[4].x)
         assertClose(0.0, loop.points[4].y)
         assertEquals(0, document.unsupportedEntityCount)
+    }
+
+    @Test
+    fun rejectsOmittedEdgeLoopElementPlaceholdersInsteadOfDroppingThem() {
+        val result = StepLiteParser().parse(OmittedEdgeLoopElementPlaceholderStep.byteInputStream())
+
+        assertEquals(
+            StepLiteParseResult.Unsupported(StepLiteUnsupportedReason.EMPTY_OR_UNSUPPORTED),
+            result
+        )
     }
 
     @Test
@@ -2949,6 +2969,35 @@ class StepLiteParserTest {
             END-ISO-10303-21;
         """.trimIndent()
 
+        private val UnknownCompositeCurveSegmentPlaceholderStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom unknown composite curve segment placeholder STEP fixture'),'2;1');
+            FILE_NAME('unknown-composite-curve-segment-placeholder.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Unknown Composite Curve Segment Placeholder Fixture','Unknown Composite Curve Segment Placeholder Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(3.,3.,0.));
+            #12=CARTESIAN_POINT('',(6.,0.,0.));
+            #13=CARTESIAN_POINT('',(9.,3.,0.));
+            #14=CARTESIAN_POINT('',(12.,0.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#14);
+            #30=POLYLINE('',(#10,#11,#12));
+            #31=POLYLINE('',(#14,#13,#12));
+            #40=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#30);
+            #41=COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.F.,#31);
+            #50=COMPOSITE_CURVE('',(#40,$,#41),.F.);
+            #60=EDGE_CURVE('',#20,#21,#50,.T.);
+            #200=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
         private val CompositeLineCurveStep = """
             ISO-10303-21;
             HEADER;
@@ -3140,6 +3189,52 @@ class StepLiteParserTest {
             #52=ORIENTED_EDGE('',*,*,#42,.F.);
             #53=ORIENTED_EDGE('',*,*,#43,.T.);
             #60=EDGE_LOOP('',(#50,#51,#52,#53));
+            #61=FACE_OUTER_BOUND('',#60,.T.);
+            #62=ADVANCED_FACE('',(#61),#70,.T.);
+            #70=PLANE('',#71);
+            #71=AXIS2_PLACEMENT_3D('',#10,#94,#90);
+            #90=DIRECTION('',(1.,0.,0.));
+            #91=DIRECTION('',(0.,1.,0.));
+            #92=DIRECTION('',(1.,0.,0.));
+            #93=DIRECTION('',(0.,-1.,0.));
+            #94=DIRECTION('',(0.,0.,1.));
+            #100=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));
+            ENDSEC;
+            END-ISO-10303-21;
+        """.trimIndent()
+
+        private val OmittedEdgeLoopElementPlaceholderStep = """
+            ISO-10303-21;
+            HEADER;
+            FILE_DESCRIPTION(('Fileloom omitted edge loop element placeholder STEP fixture'),'2;1');
+            FILE_NAME('omitted-edge-loop-element-placeholder.stp','2026-05-22',('Fileloom'),('Fileloom'),'','','');
+            FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+            ENDSEC;
+            DATA;
+            #1=PRODUCT('Omitted Edge Loop Element Placeholder Fixture','Omitted Edge Loop Element Placeholder Fixture','',(#2));
+            #2=PRODUCT_CONTEXT('',#3,'mechanical');
+            #3=APPLICATION_CONTEXT('fileloom step lite');
+            #10=CARTESIAN_POINT('',(0.,0.,0.));
+            #11=CARTESIAN_POINT('',(8.,0.,0.));
+            #12=CARTESIAN_POINT('',(8.,5.,0.));
+            #13=CARTESIAN_POINT('',(0.,5.,0.));
+            #20=VERTEX_POINT('',#10);
+            #21=VERTEX_POINT('',#11);
+            #22=VERTEX_POINT('',#12);
+            #23=VERTEX_POINT('',#13);
+            #30=LINE('',#10,#90);
+            #31=LINE('',#11,#91);
+            #32=LINE('',#13,#92);
+            #33=LINE('',#13,#93);
+            #40=EDGE_CURVE('',#20,#21,#30,.T.);
+            #41=EDGE_CURVE('',#21,#22,#31,.T.);
+            #42=EDGE_CURVE('',#23,#22,#32,.T.);
+            #43=EDGE_CURVE('',#23,#20,#33,.T.);
+            #50=ORIENTED_EDGE('',*,*,#40,.T.);
+            #51=ORIENTED_EDGE('',*,*,#41,.T.);
+            #52=ORIENTED_EDGE('',*,*,#42,.F.);
+            #53=ORIENTED_EDGE('',*,*,#43,.T.);
+            #60=EDGE_LOOP('',(#50,*,#51,#52,#53));
             #61=FACE_OUTER_BOUND('',#60,.T.);
             #62=ADVANCED_FACE('',(#61),#70,.T.);
             #70=PLANE('',#71);
